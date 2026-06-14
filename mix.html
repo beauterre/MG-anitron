@@ -3,56 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <title>Project Canvas Renderer</title>
-    <style>
-        body { background: #333; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
-        canvas { background: black; border: 2px solid #666; max-width: 80%; height: auto; }
-        .controls { margin: 20px; padding: 20px; background: #444; border-radius: 8px; }
-    </style>
+ <style>
+    body { 
+        background: #333; 
+        color: white; 
+        font-family: sans-serif; 
+        display: flex; 
+        flex-direction: row; /* Change to row for side-by-side */
+        align-items: flex-start; 
+        justify-content: center;
+        gap: 20px;
+        padding: 20px;
+    }
+	
+	#timelineCanvas {
+    border-radius: 4px;
+    display: block;
+}
+    
+    /* The area containing the canvas and project settings */
+    .main-workspace {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 3; /* Takes up most of the space */
+    }
+
+    canvas { 
+        background: black; 
+        border: 2px solid #666; 
+        max-width: 100%; 
+        height: auto; 
+    }
+
+    .controls { 
+        margin-bottom: 20px; 
+        padding: 20px; 
+        background: #444; 
+        border-radius: 8px; 
+        width: 100%;
+        max-width: 1000px;
+    }
+
+    /* The Event Editor Panel */
+    .event-panel {
+        flex: 1; /* Takes up remaining space */
+        background: #444;
+        border-radius: 8px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        height: 90vh; /* Fixed height to allow scrolling */
+        min-width: 350px;
+    }
+
+    .event-toolbar {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+
+    .event-toolbar button {
+        cursor: pointer;
+        padding: 5px 10px;
+    }
+
+    #jsonEditor {
+        flex-grow: 1; /* Takes up all available vertical space */
+        background: #222;
+        color: #0f0; /* Classic matrix green for JSON */
+        font-family: 'Courier New', Courier, monospace;
+        border: 1px solid #666;
+        padding: 10px;
+        resize: none;
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+    }
+
+    .editor-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+</style>
 </head>
 <body>
 
-    <div class="controls">
-        <p id="projectstatus">Waiting for folder...</p>
-        <label>Project Folder: </label>
-        <input type="file" id="folderInput" webkitdirectory directory multiple>
-       <p></p>
- 		
-        <div id="rest" style="opacity:0.1;">
-			<label>Current Frame: </label>
-			<button onclick="prevFrame()">prev</button>
-			<input type="number" id="frameNum" value="5">
-			<button onclick="nextFrame()">next</button>
-			<p>
-				<button onclick="loadFrame()">loadFrame</button>
-				<button onclick="renderFrame()">Render Events</button>
-				<button onclick="saveFrame()">Save</button>
-			</p>
-			<p>
-				<label>Range start: </label>
-				<input type="number" id="startFrame" value="5">
-				<label>Range end: </label>
-				<input type="number" id="endFrame" value="15">
-				<button onclick="render()">Render</button>
-			</p>
+ <body>
+
+    <!-- LEFT SIDE: Canvas and Project Controls -->
+    <div class="main-workspace">
+        <div class="feedback">
+				<div id="projectstatus">Waiting for folder...</div>
 		</div>
+        <div id="no folder">
+				<label>Project Folder: </label>
+				<input type="file" id="folderInput" webkitdirectory directory multiple>
+				<p></p>
+        </div>
+				
+        <div id="video-controls" style="opacity:0.1;">
+                <label>Current Frame: </label>
+                <button onclick="prevFrame()">prev</button>
+                <input type="number" id="frameNum" value="5">
+                <button onclick="nextFrame()">next</button>
+				<label>Timeline FPS: </label>
+				<input type="number" id="timelineFps" value="30" style="width: 50px;" onchange="drawTimeline()">
+
+                <p>
+                    <button onclick="loadFrame()">loadFrame</button>
+                    <button onclick="renderFrame()">Render Events</button>
+                    <button onclick="saveFrame()">Save</button>
+                </p>
+                <p>
+                    <label>Range start: </label>
+                    <input type="number" id="startFrame" value="5">
+                    <label>Range end: </label>
+                    <input type="number" id="endFrame" value="15">
+                    <button onclick="render()">Render</button>
+                </p>
+        </div>
+<!-- Timeline Visualization -->
+<div style="width: 100%; max-width: 1000px; margin-bottom: 10px;">
+    <div style="display:flex; justify-content: space-between; color: #aaa; font-size: 12px;">
+        <span>0s</span>
+        <span id="totalTimeLabel">10s</span>
+    </div>
+    <canvas id="timelineCanvas" width="1000" height="60" style="background: #222; border: 1px solid #555; cursor: pointer; width: 100%;"></canvas>
+</div>
+        <canvas id="mainCanvas" width="1920" height="1080"></canvas>
     </div>
 
-    <canvas id="mainCanvas" width="1920" height="1080"></canvas>
+    <!-- RIGHT SIDE: JSON Event Editor -->
+    <div class="event-panel">
+        <h3>Event Timeline</h3>
+        
+        <div class="event-toolbar">
+            <button onclick="eventPrev()">◀ Prev</button>
+            <button onclick="eventNext()">Next ▶</button>
+            <button onclick="eventAdd()">Add +</button>
+            <button onclick="eventEdit()">Edit</button>
+            <button onclick="eventDelete()">Delete</button>
+        </div>
 
-    <script>
+        <p id="eventStatus">No event selected</p>
+
+        <textarea id="jsonEditor" spellcheck="false"></textarea>
+
+        <div class="editor-footer">
+            <button onclick="applyEventChange()" style="background: #28a745; color: white; padding: 10px 20px; cursor: pointer;">Apply / Ready</button>
+        </div>
+    </div>
+
+</body>
+
+    <script id="assets">
         var canvas = document.getElementById('mainCanvas');
         var ctx = canvas.getContext('2d');
         var feedback = document.getElementById('projectstatus');
         var frameDOM = document.getElementById('frameNum');
        if (feedback) {
             console.log(feedback); // Should show the HTML element
-            feedback.innerText = "select folder"; 
-            console.log("Text updated!");
-			feedback.innerText = "select folder";
+            feedback.innerText = "select project folder"; 
         } else {
             console.error("Could not find element with ID 'projectstatus'");
         }        var fileMap = {}; 
-        var assetImages = {}; 
+       var assetImages = {}; // filled by sprites..
 
         var dir = "Ijsselland";
         var sprites = [
@@ -107,8 +225,10 @@
         feedback.innerText = "Assets loaded. Ready.";
 		// show the currentframe
 		loadFrame();
-		var rest=document.getElementById("rest");
-		rest.style.opacity=1;
+//		var noFolder=document.getElementById("no folder");
+//		noFolder.style.display="none";
+		var videoControls=document.getElementById("video-controls");
+		videoControls.style.opacity=1;
     } else {
         // FIX: Use innerHTML and straight quotes ''
         feedback.innerHTML = "<p style='color: red;'>" + error + "</p>";
@@ -248,5 +368,273 @@
             }
         }
     </script>
+	
+   <script id="timeline visualisation">
+	var fpsDOM = document.getElementById('timelineFps');
+	var timelineCanvas = document.getElementById('timelineCanvas');
+	var tCtx = timelineCanvas.getContext('2d');
+	var totalTimelineSeconds = 10; // Default duration
+	var viewStart = 0;          // Left edge of viewport in seconds
+	var viewEnd = 10;           // Right edge of viewport in seconds
+	var isDragging = false;
+	var lastMouseX = 0;
+
+	
+	function getTypeColor(type) {
+		if (!type) return "hsl(0, 0%, 70%)"; // Default grey
+
+		// 1. Simple hash: convert string characters to a number
+		var hash = 0;
+		for (var i = 0; i < type.length; i++) {
+			hash = type.charCodeAt(i) + ((hash << 5) - hash);
+		}
+
+		// 2. Use the hash to pick a Hue (0-360)
+		var hue = Math.abs(hash % 360);
+		
+		// 3. Set Saturation to 35% and Lightness to 65% for pleasant, desaturated tones
+		return "hsl(" + hue + ", 35%, 65%)";
+	}
+
+function drawTimeline() {
+    var w = timelineCanvas.width;
+    var h = timelineCanvas.height;
+    var viewDuration = viewEnd - viewStart;
+    var fps = parseInt(fpsDOM.value) || 30; // Get current FPS
+    var frameDuration = 1 / fps; // Seconds per frame
+    
+    tCtx.clearRect(0, 0, w, h);
+    
+    // --- 1. DRAW FRAME LINES (Quantization) ---
+    // Only draw frame lines if we are zoomed in enough (e.g., view < 2 seconds)
+    // otherwise, the lines will be too close together and look like a solid block.
+    if (viewDuration < 10) {
+        tCtx.strokeStyle = "#356"; // bluish.
+        tCtx.lineWidth = 1;
+        
+        // Find the first frame index visible in the current view
+        var firstFrameIdx = Math.ceil(viewStart / frameDuration);
+        var lastFrameIdx = Math.floor(viewEnd / frameDuration);
+        
+        for (var f = firstFrameIdx; f <= lastFrameIdx; f++) {
+            var frameTime = f * frameDuration;
+            var x = ((frameTime - viewStart) / viewDuration) * w;
+            
+            tCtx.beginPath();
+            tCtx.moveTo(x, 0);
+            tCtx.lineTo(x, h);
+            tCtx.stroke();
+        }
+    }
+
+    // --- 2. DRAW SECOND MARKERS (The Grid) ---
+    tCtx.strokeStyle = "#555"; // Lighter grey for seconds
+    tCtx.fillStyle = "#888";
+    tCtx.font = "10px Arial";
+    tCtx.lineWidth = 2;
+
+    var interval = 1;
+    if (viewDuration < 5) interval = 0.5;
+    if (viewDuration < 2) interval = 0.1;
+
+    var firstMarker = Math.ceil(viewStart / interval) * interval;
+    for (var i = firstMarker; i <= viewEnd; i += interval) {
+        var x = ((i - viewStart) / viewDuration) * w;
+        tCtx.beginPath();
+        tCtx.moveTo(x, 0);
+        tCtx.lineTo(x, h);
+        tCtx.stroke();
+        tCtx.fillText(i.toFixed(1) + "s", x + 2, h - 5);
+    }
+
+    // --- 3. DRAW EVENTS ---
+    for (var i = 0; i < timelineEvents.length; i++) {
+        var evt = timelineEvents[i];
+        if (evt.time >= viewStart && evt.time <= viewEnd) {
+            var x = ((evt.time - viewStart) / viewDuration) * w;
+            var y = h / 2;
+            var color = getTypeColor(evt.type);
+            tCtx.fillStyle = color;
+
+            if (i === currentEventIndex) {
+                tCtx.strokeStyle = "white";
+                tCtx.lineWidth = 2;
+                tCtx.beginPath();
+                tCtx.arc(x, y, 7, 0, Math.PI * 2);
+                tCtx.stroke();
+                tCtx.beginPath();
+                tCtx.arc(x, y, 5, 0, Math.PI * 2);
+                tCtx.fill();
+                tCtx.fillStyle = "white";
+                tCtx.fillText("Selected", x - 20, y - 12);
+            } else {
+                tCtx.beginPath();
+                tCtx.arc(x, y, 4, 0, Math.PI * 2);
+                tCtx.fill();
+            }
+        }
+    }
+}
+
+// PANNING: Click and Drag
+timelineCanvas.addEventListener('mousedown', function(e) {
+    isDragging = true;
+    lastMouseX = e.clientX;
+});
+
+window.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    
+    var deltaX = e.clientX - lastMouseX;
+    var viewDuration = viewEnd - viewStart;
+    var secondsPerPixel = viewDuration / timelineCanvas.width;
+    
+    // Shift the viewport
+    var shift = deltaX * secondsPerPixel;
+    viewStart -= shift;
+    viewEnd -= shift;
+    
+    lastMouseX = e.clientX;
+    drawTimeline();
+});
+
+window.addEventListener('mouseup', function() {
+    isDragging = false;
+});
+
+// ZOOMING: Mouse Wheel
+timelineCanvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    
+    var zoomIntensity = 0.1;
+    var delta = e.deltaY > 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
+    
+    // Zoom centered on mouse position
+    var rect = timelineCanvas.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left;
+    var mouseTime = viewStart + (mouseX / timelineCanvas.width) * (viewEnd - viewStart);
+    
+    var newDuration = (viewEnd - viewStart) * delta;
+    
+    // Prevent zooming in too far or out too far
+    if (newDuration < 0.1 || newDuration > 100) return;
+
+    // Redistribute duration around the mouseTime
+    var ratio = mouseX / timelineCanvas.width;
+    viewStart = mouseTime - (ratio * newDuration);
+    viewEnd = viewStart + newDuration;
+    
+    drawTimeline();
+}, { passive: false });
+
+// Handle clicking on the timeline to select an event
+// even when zoomed in..
+timelineCanvas.addEventListener('mousedown', function(e) {
+    // 1. Start the dragging state (for panning)
+    isDragging = true;
+    var lastMouseXAtStart = e.clientX; 
+
+    var rect = timelineCanvas.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left;
+    var scaleX = timelineCanvas.width / rect.width;
+    var actualX = mouseX * scaleX;
+    
+    // --- THE KEY CHANGE IS HERE ---
+    // Instead of totalTimelineSeconds, we calculate based on the current view
+    var viewDuration = viewEnd - viewStart;
+    var clickedTime = viewStart + (actualX / timelineCanvas.width) * viewDuration;
+    // ------------------------------
+    
+    // Find the closest event within a small threshold
+    // We make the threshold relative to the zoom level so it feels consistent
+    var closestIndex = -1;
+    var minDiff = viewDuration * 0.05; // 5% of current view width
+    
+    for (var i = 0; i < timelineEvents.length; i++) {
+        var diff = Math.abs(timelineEvents[i].time - clickedTime);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closestIndex = i;
+        }
+    }
+    
+    if (closestIndex !== -1) {
+        currentEventIndex = closestIndex;
+        updateEditor();
+        drawTimeline();
+    }
+    
+    // Store the X for the move event to track panning
+    lastMouseX = e.clientX;
+});
+
+	
+    </script>
+   <script id="json crud">
+   
+   // Event Management State
+var currentEventIndex = -1;
+var timelineEvents = []; // This will hold your JSON event array
+
+function eventPrev() {
+    if (currentEventIndex > 0) {
+        currentEventIndex--;
+        updateEditor();
+		drawTimeline();
+    }
+}
+
+function eventNext() {
+    if (currentEventIndex < timelineEvents.length - 1) {
+        currentEventIndex++;
+        updateEditor();
+		drawTimeline();
+    }
+}
+
+function eventAdd() {
+    var newEvent = { time: 0, type: "move", target: "sprite1", params: {} };
+    timelineEvents.push(newEvent);
+    currentEventIndex = timelineEvents.length - 1;
+    updateEditor();
+	drawTimeline();
+}
+
+function updateEditor() {
+    var editor = document.getElementById('jsonEditor');
+    var status = document.getElementById('eventStatus');
+    if (currentEventIndex === -1) {
+        editor.value = "";
+        status.innerText = "No event selected";
+    } else {
+        var evt = timelineEvents[currentEventIndex];
+        // Pretty print the JSON with 4 spaces
+        editor.value = JSON.stringify(evt, null, 4);
+        status.innerText = "Editing Event #" + (currentEventIndex + 1);
+    }
+}
+
+function applyEventChange() {
+    try {
+        var updatedEvent = JSON.parse(document.getElementById('jsonEditor').value);
+        timelineEvents[currentEventIndex] = updatedEvent;
+		drawTimeline();
+        //alert("Event updated successfully!");
+    } catch (e) {
+        alert("Invalid JSON format! Please check your commas and brackets.");
+    }
+}
+
+function eventDelete() {
+    if (currentEventIndex > -1) {
+        timelineEvents.splice(currentEventIndex, 1);
+        currentEventIndex = -1;
+        updateEditor();
+		drawTimeline();
+    }
+}
+
+   </script>
+	
 </body>
 </html>

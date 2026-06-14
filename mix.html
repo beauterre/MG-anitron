@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Project Canvas Renderer</title>
+    <style>
+        body { background: #333; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+        canvas { background: black; border: 2px solid #666; max-width: 80%; height: auto; }
+        .controls { margin: 20px; padding: 20px; background: #444; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <p id="projectstatus">Waiting for folder...</p>
+        <label>Project Folder: </label>
+        <input type="file" id="folderInput" webkitdirectory directory multiple>
+       <p></p>
+ 		
+        <div id="rest" style="opacity:0.1;">
+			<label>Current Frame: </label>
+			<button onclick="prevFrame()">prev</button>
+			<input type="number" id="frameNum" value="5">
+			<button onclick="nextFrame()">next</button>
+			<p>
+				<button onclick="loadFrame()">loadFrame</button>
+				<button onclick="renderFrame()">Render Events</button>
+				<button onclick="saveFrame()">Save</button>
+			</p>
+			<p>
+				<label>Range start: </label>
+				<input type="number" id="startFrame" value="5">
+				<label>Range end: </label>
+				<input type="number" id="endFrame" value="15">
+				<button onclick="render()">Render</button>
+			</p>
+		</div>
+    </div>
+
+    <canvas id="mainCanvas" width="1920" height="1080"></canvas>
+
+    <script>
+        var canvas = document.getElementById('mainCanvas');
+        var ctx = canvas.getContext('2d');
+        var feedback = document.getElementById('projectstatus');
+        var frameDOM = document.getElementById('frameNum');
+       if (feedback) {
+            console.log(feedback); // Should show the HTML element
+            feedback.innerText = "select folder"; 
+            console.log("Text updated!");
+			feedback.innerText = "select folder";
+        } else {
+            console.error("Could not find element with ID 'projectstatus'");
+        }        var fileMap = {}; 
+        var assetImages = {}; 
+
+        var dir = "Ijsselland";
+        var sprites = [
+            {name:'mannetje', x:0, y:0, url:'video/mannetje.png'}, 
+            {name:'vrouwtje', x:0, y:0, url:'video/vrouwtje.png'}, 
+            {name:'chat', x:0, y:0, url:'video/ook-via-chat.png'}, 
+            {name:'sense', x:0, y:0, url:'video/sense-info.png'}, 
+            {name:'vragen', x:0, y:0, url:'video/voor-al-je-vragen.png'}, 
+            {name:'wolk1', x:0, y:0, url:'video/wolkje1.png'}, 
+            {name:'wolk2', x:0, y:0, url:'video/wolkje2.png'}, 
+            {name:'url', x:0, y:0, url:dir + '/url.png'}, 
+            {name:'guide', x:0, y:0, url:dir + '/guide.png'}, 
+            {name:'title', x:0, y:0, url:dir + '/title.png'}
+        ];
+
+        document.getElementById('folderInput').addEventListener('change', function(e) {
+            var files = e.target.files;
+            fileMap = {};
+            for (var i = 0; i < files.length; i++) {
+                var file = files[i];
+                fileMap[file.webkitRelativePath] = file;
+            }
+            feedback.innerHtml = "Loading.. " + files.length + " files. Preloading assets...";
+            preloadAssets();
+        });
+
+       async function preloadAssets() {
+    var error = "";
+    for (var i = 0; i < sprites.length; i++) {
+        var sprite = sprites[i];
+        var path = Object.keys(fileMap).find(function(p) {
+            return p.indexOf(sprite.url) !== -1;
+        });
+        
+        if (path) {
+            assetImages[sprite.name] = await loadImage(fileMap[path]);
+            // FIX: Use innerHTML (caps)
+            feedback.innerHTML = "Loaded: " + sprite.name;
+        } else {
+            console.warn("Asset not found: " + sprite.url);
+            error = "Asset not found: " + sprite.url;
+            console.log("error is now: " + error);
+            // FIX: Use innerHTML and straight quotes ''
+            feedback.innerHTML = "<p style='color: red;'>Asset not found: " + sprite.url + "</p>";
+        }
+    }
+
+    console.log("Final error check: " + error + " (length: " + error.length + ")");
+
+    // FIX: Logic was inverted. If length is 0, it means NO errors.
+    if (error.length === 0) {
+        feedback.innerText = "Assets loaded. Ready.";
+		// show the currentframe
+		loadFrame();
+		var rest=document.getElementById("rest");
+		rest.style.opacity=1;
+    } else {
+        // FIX: Use innerHTML and straight quotes ''
+        feedback.innerHTML = "<p style='color: red;'>" + error + "</p>";
+    }
+}
+
+
+        function loadImage(file) {
+            return new Promise(function(resolve) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var img = new Image();
+                    img.onload = function() { resolve(img); };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function drawSprite(spriteName, x, y, scale) {
+            if (scale === undefined) scale = 1;
+            var img = assetImages[spriteName];
+            var config = sprites.find(function(s) { return s.name === spriteName; });
+            
+            if (!img || !config) return;
+
+            var drawX = x - (config.x * scale);
+            var drawY = y - (config.y * scale);
+            var drawW = img.width * scale;
+            var drawH = img.height * scale;
+
+            ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        }
+
+		function nextFrame() {
+            var frameVal = document.getElementById('frameNum').value;
+			frameVal++;
+			frameDOM.value=frameVal;
+			loadFrame();
+		}
+		function prevFrame() {
+            var frameVal = document.getElementById('frameNum').value;
+			frameVal--;
+			frameDOM.value=frameVal;
+			loadFrame();
+		}
+        async function loadFrame() {
+            var frameVal = document.getElementById('frameNum').value;
+            var paddedFrame = frameVal.toString().padStart(4, '0');
+
+            try {
+                var videoSearch = "video/prod" + paddedFrame + ".png";
+                var videoPath = Object.keys(fileMap).find(function(p) {
+                    return p.indexOf(videoSearch) !== -1;
+                });
+
+                if (!videoPath) throw new Error("Video frame " + videoSearch + " not found");
+                var videoImg = await loadImage(fileMap[videoPath]);
+
+                var witPath = Object.keys(fileMap).find(function(p) {
+                    return p.indexOf('wit.png') !== -1;
+                });
+                var witImg = witPath ? await loadImage(fileMap[witPath]) : null;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.drawImage(videoImg, 0, 0, 1920, 1080);
+                if (witImg) ctx.drawImage(witImg, 0, 0);
+            } catch (err) {
+                alert(err.message);
+                console.error(err);
+            }
+
+		}
+        async function renderFrame() {
+            var frameVal = document.getElementById('frameNum').value;
+            var paddedFrame = frameVal.toString().padStart(4, '0');
+
+            try {
+                var videoSearch = "video/prod" + paddedFrame + ".png";
+                var videoPath = Object.keys(fileMap).find(function(p) {
+                    return p.indexOf(videoSearch) !== -1;
+                });
+
+                if (!videoPath) throw new Error("Video frame " + videoSearch + " not found");
+                var videoImg = await loadImage(fileMap[videoPath]);
+
+                var witPath = Object.keys(fileMap).find(function(p) {
+                    return p.indexOf('wit.png') !== -1;
+                });
+                var witImg = witPath ? await loadImage(fileMap[witPath]) : null;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.drawImage(videoImg, 0, 0, 1920, 1080);
+                if (witImg) ctx.drawImage(witImg, 0, 0);
+
+                // Examples of drawing sprites
+                drawSprite('guide', 0, 0, 1);// draw the guide to pinpoint the rest.
+                drawSprite('mannetje', 500, 500, 1.5);
+                drawSprite('wolk1', 200, 100, 1.0);
+                drawSprite('title', 960, 100, 0.8);
+
+                status.innerText = "Rendered frame " + frameVal + ". Saving...";
+                await saveCanvas(canvas, 'overlay', frameVal);
+
+            } catch (err) {
+                alert(err.message);
+                console.error(err);
+            }
+        }
+
+        async function saveCanvas(canvas, filename, frameNr) {
+            var paddedFrame = frameNr.toString().padStart(4, '0');
+            var fullFileName = filename + "_" + paddedFrame + ".png";
+
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: fullFileName,
+                    types: [{
+                        description: 'PNG Image',
+                        accept: {'image/png': ['.png']},
+                    }],
+                });
+
+                const writable = await handle.createWritable();
+                const blob = await new Promise(function(resolve) {
+                    canvas.toBlob(resolve, 'image/png');
+                });
+                await writable.write(blob);
+                await writable.close();
+                
+                status.innerText = "Successfully saved " + fullFileName;
+            } catch (err) {
+                console.error(err);
+                status.innerText = "Save cancelled or failed.";
+            }
+        }
+    </script>
+</body>
+</html>

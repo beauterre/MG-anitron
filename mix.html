@@ -45,17 +45,90 @@
         max-width: 1000px;
     }
 
-    /* The Event Editor Panel */
-    .event-panel {
-        flex: 1; /* Takes up remaining space */
-        background: #444;
-        border-radius: 8px;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        height: 90vh; /* Fixed height to allow scrolling */
-        min-width: 350px;
-    }
+/* Rename .event-panel to .workspace-panel */
+.workspace-panel {
+    flex: 1;
+    background: #444;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    height: 90vh;
+    min-width: 350px;
+}
+
+/* Tab Navigation Bar */
+.tab-nav {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #666;
+    padding-bottom: 10px;
+}
+
+.tab-btn {
+    background: #555;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    cursor: pointer;
+    border-radius: 4px 4px 0 0;
+    font-weight: bold;
+}
+
+.tab-btn.active {
+    background: #28a745; /* Green for active tab */
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
+}
+
+/* Tab Sections - Hidden by default */
+.tab-section {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+}
+
+.tab-section.active {
+    display: flex; /* Only show the active one */
+}
+
+/* The container for the sprite items */
+#sprite-list {
+    max-height: 250px; /* Approximately 6-7 items */
+    overflow-y: auto;  /* Enables vertical scrolling */
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+/* Custom scrollbar to make it look better on dark mode */
+#sprite-list::-webkit-scrollbar {
+    width: 8px;
+}
+#sprite-list::-webkit-scrollbar-track {
+    background: #222;
+}
+#sprite-list::-webkit-scrollbar-thumb {
+    background: #666;
+    border-radius: 4px;
+}
+
+.sprite-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #444;
+    border-bottom: 1px solid #555;
+    cursor: pointer;
+    font-size: 13px;
+}
+.sprite-item:hover { background: #555; }
+.sprite-item.selected { 
+    background: #28a745; 
+    color: white; 
+    font-weight: bold;
+}
 
     .event-toolbar {
         display: flex;
@@ -136,10 +209,25 @@
         <canvas id="mainCanvas" width="1920" height="1080"></canvas>
     </div>
 
-    <!-- RIGHT SIDE: JSON Event Editor -->
-    <div class="event-panel">
+    <!-- RIGHT SIDE: various Editors -->
+<!-- RIGHT SIDE: Workspace Panel -->
+<div class="workspace-panel">
+
+    <!-- Project File Controls -->
+    <div class="project-toolbar" style="display: flex; gap: 10px; margin-bottom: 15px; background: #333; padding: 10px; border-radius: 5px;">
+        <button onclick="loadProject()" style="cursor:pointer;">📂 Load Project</button>
+        <button onclick="saveProject()" style="cursor:pointer;">💾 Save Project</button>
+    </div>
+	
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button id="btn-tab-events" class="tab-btn active" onclick="switchTab('events')">📅 Events</button>
+        <button id="btn-tab-sprites" class="tab-btn" onclick="switchTab('sprites')">🎨 Sprites</button>
+    </div>
+
+    <!-- EVENT EDITOR SECTION -->
+    <div id="sec-events" class="tab-section active">
         <h3>Event Timeline</h3>
-        
         <div class="event-toolbar">
             <button onclick="eventPrev()">◀ Prev</button>
             <button onclick="eventNext()">Next ▶</button>
@@ -147,17 +235,219 @@
             <button onclick="eventEdit()">Edit</button>
             <button onclick="eventDelete()">Delete</button>
         </div>
-
         <p id="eventStatus">No event selected</p>
-
         <textarea id="jsonEditor" spellcheck="false"></textarea>
-
         <div class="editor-footer">
             <button onclick="applyEventChange()" style="background: #28a745; color: white; padding: 10px 20px; cursor: pointer;">Apply / Ready</button>
         </div>
     </div>
 
-</body>
+	<!-- SPRITE EDITOR SECTION -->
+	<div id="sec-sprites" class="tab-section">
+		<h3>Sprite Properties</h3>
+		
+		<div style="margin-bottom: 10px;">
+			<input type="text" id="spriteSearch" placeholder="Search sprites..." 
+				   style="width: 100%; padding: 5px; background: #222; color: white; border: 1px solid #666;" 
+				   oninput="populateSpriteList()">
+		</div>
+
+		<div id="sprite-list"></div>
+
+		<div id="sprite-editor-details" style="background: #333; padding: 10px; border-radius: 5px;">
+			<p id="sprite-prompt">Select a sprite to edit anchor points</p>
+			
+			<div id="sprite-inputs" style="display:none; display: flex; flex-direction: column; align-items: center;">
+				<!-- PREVIEW CANVAS -->
+				<canvas id="spritePreviewCanvas" width="300" height="300" 
+						style="background: #222; border: 1px solid #555; margin-bottom: 10px; max-width: 100%; height: auto;"></canvas>
+				
+				<div style="width: 100%; text-align: left;">
+					<label>Sprite: </label> <input type="text" id="spriteNameDOM" readonly style="background:#222; color:#aaa; border:none; margin-bottom: 10px;"><br>
+					<label>Anchor X: </label> <input type="number" id="spriteX" style="width:60px;" oninput="updatePreview()"> <br>
+					<label>Anchor Y: </label> <input type="number" id="spriteY" style="width:60px;" oninput="updatePreview()"><br>
+					<button onclick="saveSpriteAnchor()" style="margin-top:10px; cursor:pointer;">Save Anchor</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</div>
+
+
+<script id="workspace-tabs">
+    /**
+     * switchTab
+     * @param {string} tabName - The name of the tab to activate (e.g., 'events', 'sprites')
+     */
+    function switchTab(tabName) {
+        // 1. Hide all sections by removing the 'active' class
+        var sections = document.querySelectorAll('.tab-section');
+        for (var i = 0; i < sections.length; i++) {
+            sections[i].classList.remove('active');
+        }
+        
+        // 2. Deactivate all buttons
+        var buttons = document.querySelectorAll('.tab-btn');
+        for (var j = 0; j < buttons.length; j++) {
+            buttons[j].classList.remove('active');
+        }
+        
+        // 3. Show the selected section and activate its button
+        var targetSection = document.getElementById('sec-' + tabName);
+        var targetButton = document.getElementById('btn-tab-' + tabName);
+        
+        if (targetSection && targetButton) {
+            targetSection.classList.add('active');
+            targetButton.classList.add('active');
+        }
+        
+        // Special Hook: If we switch to sprites, we need to refresh the list
+        if (tabName === 'sprites') {
+            populateSpriteList();
+        }
+    }
+</script>
+<script id="sprite-editor">
+    var currentSelectedSprite = null;
+
+var previewCanvas = document.getElementById('spritePreviewCanvas');
+var pCtx = previewCanvas.getContext('2d');
+
+/**
+ * updatePreview
+ * Draws the selected sprite image and the current anchor point
+ */
+function updatePreview() {
+	console.log("updatePreview called");
+    if (!currentSelectedSprite) return;
+    
+	console.log("for "+currentSelectedSprite.name);
+    var img = assetImages[currentSelectedSprite.name];
+    if (!img) return;
+
+	console.log("found the img ");
+    var cw = previewCanvas.width;
+    var ch = previewCanvas.height;
+    pCtx.clearRect(0, 0, cw, ch);
+
+    // 1. Calculate "Scale to Fit" (Letterbox)
+    var scale = Math.min(cw / img.width, ch / img.height);
+    var drawW = img.width * scale;
+    var drawH = img.height * scale;
+    var offsetX = (cw - drawW) / 2;
+    var offsetY = (ch - drawH) / 2;
+
+    // 2. Draw the image
+    pCtx.drawImage(img, offsetX, offsetY, drawW, drawH);
+
+    // 3. Draw the Anchor Point
+    // We take the sprite's anchor (relative to image) and scale it to the preview
+    var anchorX = offsetX + (currentSelectedSprite.x * scale);
+    var anchorY = offsetY + (currentSelectedSprite.y * scale);
+
+    // Draw Crosshair
+    pCtx.strokeStyle = "red";
+    pCtx.fillStyle = "red";
+    pCtx.lineWidth = 1;
+
+    // Horizontal line
+    pCtx.beginPath();
+    pCtx.moveTo(anchorX - 10, anchorY);
+    pCtx.lineTo(anchorX + 10, anchorY);
+    pCtx.stroke();
+
+    // Vertical line
+    pCtx.beginPath();
+    pCtx.moveTo(anchorX, anchorY - 10);
+    pCtx.lineTo(anchorX, anchorY + 10);
+    pCtx.stroke();
+
+    // Center dot
+    pCtx.beginPath();
+    pCtx.arc(anchorX, anchorY, 3, 0, Math.PI * 2);
+    pCtx.fill();
+}
+
+
+    /**
+     * populateSpriteList
+     * Renders the list of all available sprites in the sidebar
+     */
+function populateSpriteList() {
+console.log("populateSpriteList called");
+    var listDiv = document.getElementById('sprite-list');
+    if (!listDiv) return;
+    
+    var searchTerm = document.getElementById('spriteSearch').value.toLowerCase();
+    listDiv.innerHTML = "";
+    
+    // CHANGE 'var i' to 'let i'
+    for (let i = 0; i < sprites.length; i++) {
+        // CHANGE 'var s' to 'let s'
+        let s = sprites[i];
+        
+        if (s.name.toLowerCase().indexOf(searchTerm) !== -1) {
+            var item = document.createElement('div');
+            item.className = 'sprite-item';
+            
+            if (currentSelectedSprite && s.name === currentSelectedSprite.name) {
+                item.classList.add('selected');
+            }
+
+            item.innerHTML = "<span>" + s.name + "</span> <small>" + s.x + "," + s.y + "</small>";
+            
+            // Now 's' is locked to the specific sprite for this specific iteration
+            item.onclick = function() { 
+                selectSprite(s.name); 
+            };
+            listDiv.appendChild(item);
+        }
+    }
+}
+
+    /**
+     * selectSprite
+     * Loads a specific sprite's data into the input fields
+     */
+
+
+// Update selectSprite to call updatePreview
+function selectSprite(name) {
+    var found = sprites.find(function(s) { return s.name === name; });
+    if (!found) return;
+    
+    currentSelectedSprite = found;
+    document.getElementById('sprite-prompt').style.display = "none";
+    document.getElementById('sprite-inputs').style.display = "block";
+    document.getElementById('spriteX').value = currentSelectedSprite.x;
+    document.getElementById('spriteY').value = currentSelectedSprite.y;
+    document.getElementById('spriteNameDOM').value = found.name;
+    
+    populateSpriteList();
+    updatePreview(); // <--- ADD THIS
+	
+}
+
+
+    /**
+     * saveSpriteAnchor
+     * Writes the input field values back into the global sprites array
+     */
+// Update saveSpriteAnchor to call updatePreview
+function saveSpriteAnchor() {
+    if (!currentSelectedSprite) return;
+    var newX = parseInt(document.getElementById('spriteX').value);
+    var newY = parseInt(document.getElementById('spriteY').value);
+    if (isNaN(newX) || isNaN(newY)) return;
+    
+    currentSelectedSprite.x = newX;
+    currentSelectedSprite.y = newY;
+    
+    populateSpriteList();
+    updatePreview(); // <--- ADD THIS
+    if (typeof loadFrame === "function") { loadFrame(); }
+}</script>
 
     <script id="assets">
         var canvas = document.getElementById('mainCanvas');
@@ -405,19 +695,12 @@ function drawTimeline() {
     
     tCtx.clearRect(0, 0, w, h);
 
-   // --- 0. DRAW NEGATIVE TIME OVERLAY ---
-    // If the viewport start is negative, we need to highlight the "void"
+    // --- 0. DRAW NEGATIVE TIME OVERLAY ---
     if (viewStart < 0) {
-        // Calculate where 0 seconds is on the current X axis
-        // Formula: (0 - viewStart) / viewDuration * width
         var zeroX = (-viewStart / viewDuration) * w;
-        
-        // Only draw if 0 is actually within the current view
         if (zeroX > 0 && zeroX < w) {
-            tCtx.fillStyle = "rgba(0, 0, 0, 0.4)"; // Semi-transparent black
+            tCtx.fillStyle = "rgba(0, 0, 0, 0.4)";
             tCtx.fillRect(0, 0, zeroX, h);
-            
-            // Optional: Add a bright "Zero Line" to clearly separate the zones
             tCtx.strokeStyle = "#888"; 
             tCtx.lineWidth = 2;
             tCtx.beginPath();
@@ -425,34 +708,31 @@ function drawTimeline() {
             tCtx.lineTo(zeroX, h);
             tCtx.stroke();
         } else if (viewEnd < 0) {
-            // Entire view is in the negative zone
             tCtx.fillStyle = "rgba(0, 0, 0, 0.6)"; 
             tCtx.fillRect(0, 0, w, h);
         }
     }
 
-    // --- 1. FRAME LINES (Keep your existing purple logic here) ---
+    // --- 1. DRAW FRAME LINES (Purple) ---
     if (viewDuration < 2) {
         tCtx.strokeStyle = "#f3f";
         tCtx.lineWidth = 1;
         var firstFrameIdx = Math.ceil(viewStart / frameDuration);
         var lastFrameIdx = Math.floor(viewEnd / frameDuration);
         for (var f = firstFrameIdx; f <= lastFrameIdx; f++) {
-            var x = ((f * frameDuration - viewStart) / viewDuration) * w;
+            var frameTime = f * frameDuration;
+            var x = ((frameTime - viewStart) / viewDuration) * w;
             tCtx.beginPath(); tCtx.moveTo(x, 0); tCtx.lineTo(x, h); tCtx.stroke();
         }
     }
 
     // --- 2. DYNAMIC SECOND/MINUTE MARKERS ---
-    // Calculate the best interval to avoid crowding
     var interval = 1; 
     if (viewDuration > 10) interval = 5;
     if (viewDuration > 60) interval = 10;
-    if (viewDuration > 300) interval = 60; // 5 minutes
-    if (viewDuration > 1800) interval = 300; // 30 minutes
-    if (viewDuration > 3600) interval = 3600; // 1 hour
-    
-    // If zoomed in very close, use smaller intervals
+    if (viewDuration > 300) interval = 60;
+    if (viewDuration > 1800) interval = 300;
+    if (viewDuration > 3600) interval = 3600;
     if (viewDuration < 5) interval = 0.5;
     if (viewDuration < 2) interval = 0.1;
 
@@ -461,9 +741,7 @@ function drawTimeline() {
     tCtx.font = "10px Arial";
     tCtx.lineWidth = 2;
 
-    // Align the first marker to the grid (e.g., if interval is 5, markers at 0, 5, 10...)
     var firstMarker = Math.ceil(viewStart / interval) * interval;
-    
     for (var i = firstMarker; i <= viewEnd; i += interval) {
         var x = ((i - viewStart) / viewDuration) * w;
         tCtx.beginPath();
@@ -471,44 +749,53 @@ function drawTimeline() {
         tCtx.lineTo(x, h);
         tCtx.stroke();
 
-        // Formatting the label for readability (Seconds vs Minutes vs Hours)
         var label = i.toFixed(1) + "s";
-        if (i >= 3600) {
-            label = (i / 3600).toFixed(1) + "h";
-        } else if (i >= 60) {
-            label = (i / 60).toFixed(1) + "m";
-        }
-        
+        if (i >= 3600) label = (i / 3600).toFixed(1) + "h";
+        else if (i >= 60) label = (i / 60).toFixed(1) + "m";
         tCtx.fillText(label, x + 2, h - 5);
     }
 
     // --- 3. UPDATE THE TOP LABELS ---
-    
-    // Helper function to format seconds into h/m/s
     function formatTime(seconds) {
-        if (seconds >= 3600) {
-            return (seconds / 3600).toFixed(1) + "h";
-        } else if (seconds >= 60) {
-            return (seconds / 60).toFixed(1) + "m";
-        } else {
-            return seconds.toFixed(1) + "s";
+        if (seconds >= 3600) return (seconds / 3600).toFixed(1) + "h";
+        if (seconds >= 60) return (seconds / 60).toFixed(1) + "m";
+        return seconds.toFixed(1) + "s";
+    }
+    var startLabelEl = document.getElementById('startTimeLabel');
+    if (startLabelEl) startLabelEl.innerText = formatTime(viewStart);
+    var endLabelEl = document.getElementById('totalTimeLabel');
+    if (endLabelEl) endLabelEl.innerText = formatTime(viewEnd);
+
+    // --- 4. DRAW EVENTS (THE MISSING PART) ---
+    for (var j = 0; j < timelineEvents.length; j++) {
+        var evt = timelineEvents[j];
+        // Draw if the event falls within the current viewport
+        if (evt.time >= viewStart && evt.time <= viewEnd) {
+            var ex = ((evt.time - viewStart) / viewDuration) * w;
+            var ey = h / 2;
+            var color = getTypeColor(evt.type);
+            tCtx.fillStyle = color;
+
+            if (j === currentEventIndex) {
+                // Selected: White halo + colored center
+                tCtx.strokeStyle = "white";
+                tCtx.lineWidth = 2;
+                tCtx.beginPath();
+                tCtx.arc(ex, ey, 7, 0, Math.PI * 2);
+                tCtx.stroke();
+                tCtx.beginPath();
+                tCtx.arc(ex, ey, 5, 0, Math.PI * 2);
+                tCtx.fill();
+                tCtx.fillStyle = "white";
+                tCtx.fillText("Selected", ex - 20, ey - 12);
+            } else {
+                // Regular: Just the colored dot
+                tCtx.beginPath();
+                tCtx.arc(ex, ey, 4, 0, Math.PI * 2);
+                tCtx.fill();
+            }
         }
     }
-
-    // Update Start Label (Left side)
-    var startLabelEl = document.getElementById('startTimeLabel');
-    if (startLabelEl) {
-        startLabelEl.innerText = formatTime(viewStart);
-    }
-
-    // Update End Label (Right side)
-    var endLabelEl = document.getElementById('totalTimeLabel');
-    if (endLabelEl) {
-        endLabelEl.innerText = formatTime(viewEnd);
-    }
-
-    // --- 4. DRAW EVENTS (Keep your existing dot logic here) ---
-    // ... (The event loop remains the same)
 }
 
 // PANNING: Click and Drag
@@ -612,6 +899,34 @@ timelineCanvas.addEventListener('mousedown', function(e) {
 var currentEventIndex = -1;
 var timelineEvents = []; // This will hold your JSON event array
 
+// keeps next and previous working logically..
+function sortTimeline() {
+    if (timelineEvents.length === 0) return;
+
+    // 1. Save the reference to the currently selected event
+    // We store the actual object reference, not the index
+    var selectedEventRef = null;
+    if (currentEventIndex !== -1) {
+        selectedEventRef = timelineEvents[currentEventIndex];
+    }
+
+    // 2. Sort the array by the 'time' property (ascending)
+    timelineEvents.sort(function(a, b) {
+        return a.time - b.time;
+    });
+
+    // 3. Find the new index of the previously selected event
+    if (selectedEventRef) {
+        currentEventIndex = timelineEvents.indexOf(selectedEventRef);
+    }
+
+    // 4. Refresh the UI
+    updateEditor();
+    drawTimeline();
+}
+
+
+
 function eventPrev() {
     if (currentEventIndex > 0) {
         currentEventIndex--;
@@ -631,10 +946,14 @@ function eventNext() {
 function eventAdd() {
     var newEvent = { time: 0, type: "move", target: "sprite1", params: {} };
     timelineEvents.push(newEvent);
-    currentEventIndex = timelineEvents.length - 1;
-    updateEditor();
-	drawTimeline();
+    
+    // Instead of setting currentEventIndex manually, let sort handle it
+    currentEventIndex = timelineEvents.length - 1; 
+    
+    sortTimeline(); // This will sort and then re-find the index
 }
+
+
 
 function updateEditor() {
     var editor = document.getElementById('jsonEditor');
@@ -654,23 +973,124 @@ function applyEventChange() {
     try {
         var updatedEvent = JSON.parse(document.getElementById('jsonEditor').value);
         timelineEvents[currentEventIndex] = updatedEvent;
-		drawTimeline();
-        //alert("Event updated successfully!");
+        
+        // Since the time might have changed, we MUST re-sort
+        sortTimeline(); 
     } catch (e) {
-        alert("Invalid JSON format! Please check your commas and brackets.");
+        alert("Invalid JSON format!");
     }
 }
 
 function eventDelete() {
     if (currentEventIndex > -1) {
         timelineEvents.splice(currentEventIndex, 1);
-        currentEventIndex = -1;
-        updateEditor();
-		drawTimeline();
+        
+        // After deleting, we should check if the next event is now the selected one
+        // or reset to -1. sortTimeline will handle the array cleanup.
+        currentEventIndex = -1; 
+        sortTimeline();
     }
 }
 
    </script>
-	
+	<script id="projects">
+	/**
+ * saveProject
+ * Packs events, sprite anchors, and settings into one mega-file
+ */
+async function saveProject() {
+try {
+        const handle = await window.showSaveFilePicker({
+            suggestedName: 'project_data.ant', // Updated extension
+            types: [{
+                description: 'Anitron Project File',
+                accept: {'application/json': ['.ant']}, // Map JSON format to .ant extension
+            }],
+        });
+		
+        // Create the Mega-Object
+        const projectData = {
+            projectMetadata: {
+				version: document.lastModified, // Captures the timestamp of the HTML file
+                fps: parseInt(document.getElementById('timelineFps').value) || 30,
+                totalDuration: totalTimelineSeconds
+            },
+            sprites: sprites, // Saves all anchor points (x,y)
+            timeline: timelineEvents // Saves all events
+        };
+
+        const jsonString = JSON.stringify(projectData, null, 4);
+        const writable = await handle.createWritable();
+        await writable.write(jsonString);
+        await writable.close();
+        
+        alert("Project saved successfully!");
+    } catch (err) {
+        console.error("Save failed:", err);
+        if (err.name !== 'AbortError') alert("Error saving project: " + err.message);
+    }
+}
+
+/**
+ * loadProject
+ * Unpacks the mega-file and restores the entire app state
+ */
+async function loadProject() {
+    try {
+        const [fileHandle] = await window.showOpenFilePicker({
+            multiple: false,
+            types: [{
+                description: 'Project File',
+                accept: {'application/json': ['.json']},
+            }],
+        });
+
+        const file = await fileHandle.getFile();
+        const content = await file.text();
+        const data = JSON.parse(content);
+        
+   // 1. Restore Project Metadata
+        if (data.projectMetadata) {
+            // Log the version so you know when this project was created
+            console.log("Loading Anitron Project Version (Last Mod): " + (data.projectMetadata.version || "Unknown"));
+            
+            document.getElementById('timelineFps').value = data.projectMetadata.fps || 30;
+            totalTimelineSeconds = data.projectMetadata.totalDuration || 10;
+        }
+        // 2. Restore Sprites (Anchors)
+        if (Array.isArray(data.sprites)) {
+            // We map the loaded anchors back to our current sprites list
+            data.sprites.forEach(loadedSprite => {
+                var localSprite = sprites.find(s => s.name === loadedSprite.name);
+                if (localSprite) {
+                    localSprite.x = loadedSprite.x;
+                    localSprite.y = loadedSprite.y;
+                }
+            });
+        }
+
+        // 3. Restore Timeline
+        if (Array.isArray(data.timeline)) {
+            timelineEvents = data.timeline;
+        }
+
+        // 4. Sync UI
+        currentEventIndex = -1;
+        sortTimeline();
+        updateEditor();
+        drawTimeline();
+        
+        // Refresh the sprite list to show the new anchor coordinates
+        if (typeof populateSpriteList === "function") {
+            populateSpriteList();
+        }
+        
+        alert("Project loaded successfully!");
+    } catch (err) {
+        console.error("Load failed:", err);
+        if (err.name !== 'AbortError') alert("Error loading project: " + err.message);
+    }
+}
+</script>
 </body>
 </html>

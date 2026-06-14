@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Project Canvas Renderer</title>
+ <style>
+    body { 
+        background: #333; 
+        color: white; 
+        font-family: sans-serif; 
+        display: flex; 
+        flex-direction: row; /* Change to row for side-by-side */
+        align-items: flex-start; 
+        justify-content: center;
+        gap: 20px;
+        padding: 20px;
+    }
+	
+	#timelineCanvas {
+    border-radius: 4px;
+    display: block;
+}
+    
+    /* The area containing the canvas and project settings */
+    .main-workspace {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 3; /* Takes up most of the space */
+    }
+
+    canvas { 
+        background: black; 
+        border: 2px solid #666; 
+        max-width: 100%; 
+        height: auto; 
+    }
+
+    .controls { 
+        margin-bottom: 20px; 
+        padding: 20px; 
+        background: #444; 
+        border-radius: 8px; 
+        width: 100%;
+        max-width: 1000px;
+    }
+
+/* Rename .event-panel to .workspace-panel */
+.workspace-panel {
+    flex: 1;
+    background: #444;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    height: 90vh;
+    min-width: 350px;
+}
+
+/* Tab Navigation Bar */
+.tab-nav {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #666;
+    padding-bottom: 10px;
+}
+
+.tab-btn {
+    background: #555;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    cursor: pointer;
+    border-radius: 4px 4px 0 0;
+    font-weight: bold;
+}
+
+.tab-btn.active {
+    background: #28a745; /* Green for active tab */
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
+}
+
+/* Tab Sections - Hidden by default */
+.tab-section {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+}
+
+.tab-section.active {
+    display: flex; /* Only show the active one */
+}
+
+/* The container for the sprite items */
+#sprite-list {
+    max-height: 250px; /* Approximately 6-7 items */
+    overflow-y: auto;  /* Enables vertical scrolling */
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+/* Custom scrollbar to make it look better on dark mode */
+#sprite-list::-webkit-scrollbar {
+    width: 8px;
+}
+#sprite-list::-webkit-scrollbar-track {
+    background: #222;
+}
+#sprite-list::-webkit-scrollbar-thumb {
+    background: #666;
+    border-radius: 4px;
+}
+
+.sprite-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #444;
+    border-bottom: 1px solid #555;
+    cursor: pointer;
+    font-size: 13px;
+}
+.sprite-item:hover { background: #555; }
+.sprite-item.selected { 
+    background: #28a745; 
+    color: white; 
+    font-weight: bold;
+}
+
+    .event-toolbar {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+
+    .event-toolbar button {
+        cursor: pointer;
+        padding: 5px 10px;
+    }
+
+    #jsonEditor {
+        flex-grow: 1; /* Takes up all available vertical space */
+        background: #222;
+        color: #0f0; /* Classic matrix green for JSON */
+        font-family: 'Courier New', Courier, monospace;
+        border: 1px solid #666;
+        padding: 10px;
+        resize: none;
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+    }
+
+    .editor-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+</style>
+</head>
+<body>
+
+ <body>
+
+    <!-- LEFT SIDE: Canvas and Project Controls -->
+    <div class="main-workspace">
+        <div class="feedback">
+				<div id="projectstatus">Waiting for folder...</div>
+		</div>
+        <div id="no folder">
+				<label>Project Folder: </label>
+				<input type="file" id="folderInput" webkitdirectory directory multiple>
+				<p></p>
+        </div>
+				
+        <div id="video-controls" style="opacity:0.1;">
+                <label>Current Frame: </label>
+                <button onclick="prevFrame()">prev</button>
+                <input type="number" id="frameNum" value="5">
+                <button onclick="nextFrame()">next</button>
+				<label>Timeline FPS: </label>
+				<input type="number" id="timelineFps" value="30" style="width: 50px;" onchange="drawTimeline()">
+
+                <p>
+                    <button onclick="loadFrame()">loadFrame</button>
+                    <button onclick="renderFrame()">Render Events</button>
+                    <button onclick="saveFrame()">Save</button>
+                </p>
+                <p>
+                    <label>Range start: </label>
+                    <input type="number" id="startFrame" value="5">
+                    <label>Range end: </label>
+                    <input type="number" id="endFrame" value="15">
+                    <button onclick="render()">Render</button>
+                </p>
+        </div>
+<!-- Timeline Visualization -->
+<div style="width: 100%; max-width: 1000px; margin-bottom: 10px;">
+    <div style="display:flex; justify-content: space-between; color: #aaa; font-size: 12px;">
+        <span id="startTimeLabel">0s</span>
+        <span id="totalTimeLabel">10s</span>
+    </div>
+    <canvas id="timelineCanvas" width="1000" height="60" style="background: #222; border: 1px solid #555; cursor: pointer; width: 100%;"></canvas>
+</div>
+        <canvas id="mainCanvas" width="1920" height="1080"></canvas>
+    </div>
+
+    <!-- RIGHT SIDE: various Editors -->
+<!-- RIGHT SIDE: Workspace Panel -->
+<div class="workspace-panel">
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button id="btn-tab-events" class="tab-btn active" onclick="switchTab('events')">📅 Events</button>
+        <button id="btn-tab-sprites" class="tab-btn" onclick="switchTab('sprites')">🎨 Sprites</button>
+    </div>
+
+    <!-- EVENT EDITOR SECTION -->
+    <div id="sec-events" class="tab-section active">
+        <h3>Event Timeline</h3>
+        <div class="event-toolbar">
+            <button onclick="eventPrev()">◀ Prev</button>
+            <button onclick="eventNext()">Next ▶</button>
+            <button onclick="eventAdd()">Add +</button>
+            <button onclick="eventEdit()">Edit</button>
+            <button onclick="eventDelete()">Delete</button>
+        </div>
+        <p id="eventStatus">No event selected</p>
+        <textarea id="jsonEditor" spellcheck="false"></textarea>
+        <div class="editor-footer">
+            <button onclick="applyEventChange()" style="background: #28a745; color: white; padding: 10px 20px; cursor: pointer;">Apply / Ready</button>
+        </div>
+    </div>
+
+	<!-- SPRITE EDITOR SECTION -->
+	<div id="sec-sprites" class="tab-section">
+		<h3>Sprite Properties</h3>
+		
+		<div style="margin-bottom: 10px;">
+			<input type="text" id="spriteSearch" placeholder="Search sprites..." 
+				   style="width: 100%; padding: 5px; background: #222; color: white; border: 1px solid #666;" 
+				   oninput="populateSpriteList()">
+		</div>
+
+		<div id="sprite-list"></div>
+
+		<div id="sprite-editor-details" style="background: #333; padding: 10px; border-radius: 5px;">
+			<p id="sprite-prompt">Select a sprite to edit anchor points</p>
+			
+			<div id="sprite-inputs" style="display:none; display: flex; flex-direction: column; align-items: center;">
+				<!-- PREVIEW CANVAS -->
+				<canvas id="spritePreviewCanvas" width="300" height="300" 
+						style="background: #222; border: 1px solid #555; margin-bottom: 10px; max-width: 100%; height: auto;"></canvas>
+				
+				<div style="width: 100%; text-align: left;">
+					<label>Sprite: </label> <input type="text" id="spriteNameDOM" readonly style="background:#222; color:#aaa; border:none; margin-bottom: 10px;"><br>
+					<label>Anchor X: </label> <input type="number" id="spriteX" style="width:60px;" oninput="updatePreview()"> <br>
+					<label>Anchor Y: </label> <input type="number" id="spriteY" style="width:60px;" oninput="updatePreview()"><br>
+					<button onclick="saveSpriteAnchor()" style="margin-top:10px; cursor:pointer;">Save Anchor</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</div>
+
+
+<script id="workspace-tabs">
+    /**
+     * switchTab
+     * @param {string} tabName - The name of the tab to activate (e.g., 'events', 'sprites')
+     */
+    function switchTab(tabName) {
+        // 1. Hide all sections by removing the 'active' class
+        var sections = document.querySelectorAll('.tab-section');
+        for (var i = 0; i < sections.length; i++) {
+            sections[i].classList.remove('active');
+        }
+        
+        // 2. Deactivate all buttons
+        var buttons = document.querySelectorAll('.tab-btn');
+        for (var j = 0; j < buttons.length; j++) {
+            buttons[j].classList.remove('active');
+        }
+        
+        // 3. Show the selected section and activate its button
+        var targetSection = document.getElementById('sec-' + tabName);
+        var targetButton = document.getElementById('btn-tab-' + tabName);
+        
+        if (targetSection && targetButton) {
+            targetSection.classList.add('active');
+            targetButton.classList.add('active');
+        }
+        
+        // Special Hook: If we switch to sprites, we need to refresh the list
+        if (tabName === 'sprites') {
+            populateSpriteList();
+        }
+    }
+</script>
+<script id="sprite-editor">
+    var currentSelectedSprite = null;
+
+var previewCanvas = document.getElementById('spritePreviewCanvas');
+var pCtx = previewCanvas.getContext('2d');
+
+/**
+ * updatePreview
+ * Draws the selected sprite image and the current anchor point
+ */
+function updatePreview() {
+	console.log("updatePreview called");
+    if (!currentSelectedSprite) return;
+    
+	console.log("for "+currentSelectedSprite.name);
+    var img = assetImages[currentSelectedSprite.name];
+    if (!img) return;
+
+	console.log("found the img ");
+    var cw = previewCanvas.width;
+    var ch = previewCanvas.height;
+    pCtx.clearRect(0, 0, cw, ch);
+
+    // 1. Calculate "Scale to Fit" (Letterbox)
+    var scale = Math.min(cw / img.width, ch / img.height);
+    var drawW = img.width * scale;
+    var drawH = img.height * scale;
+    var offsetX = (cw - drawW) / 2;
+    var offsetY = (ch - drawH) / 2;
+
+    // 2. Draw the image
+    pCtx.drawImage(img, offsetX, offsetY, drawW, drawH);
+
+    // 3. Draw the Anchor Point
+    // We take the sprite's anchor (relative to image) and scale it to the preview
+    var anchorX = offsetX + (currentSelectedSprite.x * scale);
+    var anchorY = offsetY + (currentSelectedSprite.y * scale);
+
+    // Draw Crosshair
+    pCtx.strokeStyle = "red";
+    pCtx.fillStyle = "red";
+    pCtx.lineWidth = 1;
+
+    // Horizontal line
+    pCtx.beginPath();
+    pCtx.moveTo(anchorX - 10, anchorY);
+    pCtx.lineTo(anchorX + 10, anchorY);
+    pCtx.stroke();
+
+    // Vertical line
+    pCtx.beginPath();
+    pCtx.moveTo(anchorX, anchorY - 10);
+    pCtx.lineTo(anchorX, anchorY + 10);
+    pCtx.stroke();
+
+    // Center dot
+    pCtx.beginPath();
+    pCtx.arc(anchorX, anchorY, 3, 0, Math.PI * 2);
+    pCtx.fill();
+}
+
+
+    /**
+     * populateSpriteList
+     * Renders the list of all available sprites in the sidebar
+     */
+function populateSpriteList() {
+console.log("populateSpriteList called");
+    var listDiv = document.getElementById('sprite-list');
+    if (!listDiv) return;
+    
+    var searchTerm = document.getElementById('spriteSearch').value.toLowerCase();
+    listDiv.innerHTML = "";
+    
+    // CHANGE 'var i' to 'let i'
+    for (let i = 0; i < sprites.length; i++) {
+        // CHANGE 'var s' to 'let s'
+        let s = sprites[i];
+        
+        if (s.name.toLowerCase().indexOf(searchTerm) !== -1) {
+            var item = document.createElement('div');
+            item.className = 'sprite-item';
+            
+            if (currentSelectedSprite && s.name === currentSelectedSprite.name) {
+                item.classList.add('selected');
+            }
+
+            item.innerHTML = "<span>" + s.name + "</span> <small>" + s.x + "," + s.y + "</small>";
+            
+            // Now 's' is locked to the specific sprite for this specific iteration
+            item.onclick = function() { 
+                selectSprite(s.name); 
+            };
+            listDiv.appendChild(item);
+        }
+    }
+}
+
+    /**
+     * selectSprite
+     * Loads a specific sprite's data into the input fields
+     */
+
+
+// Update selectSprite to call updatePreview
+function selectSprite(name) {
+    var found = sprites.find(function(s) { return s.name === name; });
+    if (!found) return;
+    
+    currentSelectedSprite = found;
+    document.getElementById('sprite-prompt').style.display = "none";
+    document.getElementById('sprite-inputs').style.display = "block";
+    document.getElementById('spriteX').value = currentSelectedSprite.x;
+    document.getElementById('spriteY').value = currentSelectedSprite.y;
+    document.getElementById('spriteNameDOM').value = found.name;
+    
+    populateSpriteList();
+    updatePreview(); // <--- ADD THIS
+	
+}
+
+
+    /**
+     * saveSpriteAnchor
+     * Writes the input field values back into the global sprites array
+     */
+// Update saveSpriteAnchor to call updatePreview
+function saveSpriteAnchor() {
+    if (!currentSelectedSprite) return;
+    var newX = parseInt(document.getElementById('spriteX').value);
+    var newY = parseInt(document.getElementById('spriteY').value);
+    if (isNaN(newX) || isNaN(newY)) return;
+    
+    currentSelectedSprite.x = newX;
+    currentSelectedSprite.y = newY;
+    
+    populateSpriteList();
+    updatePreview(); // <--- ADD THIS
+    if (typeof loadFrame === "function") { loadFrame(); }
+}</script>
+
+    <script id="assets">
+        var canvas = document.getElementById('mainCanvas');
+        var ctx = canvas.getContext('2d');
+        var feedback = document.getElementById('projectstatus');
+        var frameDOM = document.getElementById('frameNum');
+       if (feedback) {
+            console.log(feedback); // Should show the HTML element
+            feedback.innerText = "select project folder"; 
+        } else {
+            console.error("Could not find element with ID 'projectstatus'");
+        }        var fileMap = {}; 
+       var assetImages = {}; // filled by sprites..
+
+        var dir = "Ijsselland";
+        var sprites = [
+            {name:'mannetje', x:0, y:0, url:'video/mannetje.png'}, 
+            {name:'vrouwtje', x:0, y:0, url:'video/vrouwtje.png'}, 
+            {name:'chat', x:0, y:0, url:'video/ook-via-chat.png'}, 
+            {name:'sense', x:0, y:0, url:'video/sense-info.png'}, 
+            {name:'vragen', x:0, y:0, url:'video/voor-al-je-vragen.png'}, 
+            {name:'wolk1', x:0, y:0, url:'video/wolkje1.png'}, 
+            {name:'wolk2', x:0, y:0, url:'video/wolkje2.png'}, 
+            {name:'url', x:0, y:0, url:dir + '/url.png'}, 
+            {name:'guide', x:0, y:0, url:dir + '/guide.png'}, 
+            {name:'title', x:0, y:0, url:dir + '/title.png'}
+        ];
+
+        document.getElementById('folderInput').addEventListener('change', function(e) {
+            var files = e.target.files;
+            fileMap = {};
+            for (var i = 0; i < files.length; i++) {
+                var file = files[i];
+                fileMap[file.webkitRelativePath] = file;
+            }
+            feedback.innerHtml = "Loading.. " + files.length + " files. Preloading assets...";
+            preloadAssets();
+        });
+
+       async function preloadAssets() {
+    var error = "";
+    for (var i = 0; i < sprites.length; i++) {
+        var sprite = sprites[i];
+        var path = Object.keys(fileMap).find(function(p) {
+            return p.indexOf(sprite.url) !== -1;
+        });
+        
+        if (path) {
+            assetImages[sprite.name] = await loadImage(fileMap[path]);
+            // FIX: Use innerHTML (caps)
+            feedback.innerHTML = "Loaded: " + sprite.name;
+        } else {
+            console.warn("Asset not found: " + sprite.url);
+            error = "Asset not found: " + sprite.url;
+            console.log("error is now: " + error);
+            // FIX: Use innerHTML and straight quotes ''
+            feedback.innerHTML = "<p style='color: red;'>Asset not found: " + sprite.url + "</p>";
+        }
+    }
+
+    console.log("Final error check: " + error + " (length: " + error.length + ")");
+
+    // FIX: Logic was inverted. If length is 0, it means NO errors.
+    if (error.length === 0) {
+        feedback.innerText = "Assets loaded. Ready.";
+		// show the currentframe
+		loadFrame();
+//		var noFolder=document.getElementById("no folder");
+//		noFolder.style.display="none";
+		var videoControls=document.getElementById("video-controls");
+		videoControls.style.opacity=1;
+    } else {
+        // FIX: Use innerHTML and straight quotes ''
+        feedback.innerHTML = "<p style='color: red;'>" + error + "</p>";
+    }
+}
+
+
+        function loadImage(file) {
+            return new Promise(function(resolve) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var img = new Image();
+                    img.onload = function() { resolve(img); };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function drawSprite(spriteName, x, y, scale) {
+            if (scale === undefined) scale = 1;
+            var img = assetImages[spriteName];
+            var config = sprites.find(function(s) { return s.name === spriteName; });
+            
+            if (!img || !config) return;
+
+            var drawX = x - (config.x * scale);
+            var drawY = y - (config.y * scale);
+            var drawW = img.width * scale;
+            var drawH = img.height * scale;
+
+            ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        }
+
+		function nextFrame() {
+            var frameVal = document.getElementById('frameNum').value;
+			frameVal++;
+			frameDOM.value=frameVal;
+			loadFrame();
+		}
+		function prevFrame() {
+            var frameVal = document.getElementById('frameNum').value;
+			frameVal--;
+			frameDOM.value=frameVal;
+			loadFrame();
+		}
+        async function loadFrame() {
+            var frameVal = document.getElementById('frameNum').value;
+            var paddedFrame = frameVal.toString().padStart(4, '0');
+
+            try {
+                var videoSearch = "video/prod" + paddedFrame + ".png";
+                var videoPath = Object.keys(fileMap).find(function(p) {
+                    return p.indexOf(videoSearch) !== -1;
+                });
+
+                if (!videoPath) throw new Error("Video frame " + videoSearch + " not found");
+                var videoImg = await loadImage(fileMap[videoPath]);
+
+                var witPath = Object.keys(fileMap).find(function(p) {
+                    return p.indexOf('wit.png') !== -1;
+                });
+                var witImg = witPath ? await loadImage(fileMap[witPath]) : null;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.drawImage(videoImg, 0, 0, 1920, 1080);
+                if (witImg) ctx.drawImage(witImg, 0, 0);
+            } catch (err) {
+                alert(err.message);
+                console.error(err);
+            }
+
+		}
+        async function renderFrame() {
+            var frameVal = document.getElementById('frameNum').value;
+            var paddedFrame = frameVal.toString().padStart(4, '0');
+
+            try {
+                var videoSearch = "video/prod" + paddedFrame + ".png";
+                var videoPath = Object.keys(fileMap).find(function(p) {
+                    return p.indexOf(videoSearch) !== -1;
+                });
+
+                if (!videoPath) throw new Error("Video frame " + videoSearch + " not found");
+                var videoImg = await loadImage(fileMap[videoPath]);
+
+                var witPath = Object.keys(fileMap).find(function(p) {
+                    return p.indexOf('wit.png') !== -1;
+                });
+                var witImg = witPath ? await loadImage(fileMap[witPath]) : null;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.drawImage(videoImg, 0, 0, 1920, 1080);
+                if (witImg) ctx.drawImage(witImg, 0, 0);
+
+                // Examples of drawing sprites
+                drawSprite('guide', 0, 0, 1);// draw the guide to pinpoint the rest.
+                drawSprite('mannetje', 500, 500, 1.5);
+                drawSprite('wolk1', 200, 100, 1.0);
+                drawSprite('title', 960, 100, 0.8);
+
+                status.innerText = "Rendered frame " + frameVal + ". Saving...";
+                await saveCanvas(canvas, 'overlay', frameVal);
+
+            } catch (err) {
+                alert(err.message);
+                console.error(err);
+            }
+        }
+
+        async function saveCanvas(canvas, filename, frameNr) {
+            var paddedFrame = frameNr.toString().padStart(4, '0');
+            var fullFileName = filename + "_" + paddedFrame + ".png";
+
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: fullFileName,
+                    types: [{
+                        description: 'PNG Image',
+                        accept: {'image/png': ['.png']},
+                    }],
+                });
+
+                const writable = await handle.createWritable();
+                const blob = await new Promise(function(resolve) {
+                    canvas.toBlob(resolve, 'image/png');
+                });
+                await writable.write(blob);
+                await writable.close();
+                
+                status.innerText = "Successfully saved " + fullFileName;
+            } catch (err) {
+                console.error(err);
+                status.innerText = "Save cancelled or failed.";
+            }
+        }
+    </script>
+	
+   <script id="timeline visualisation">
+	var fpsDOM = document.getElementById('timelineFps');
+	var timelineCanvas = document.getElementById('timelineCanvas');
+	var tCtx = timelineCanvas.getContext('2d');
+	var totalTimelineSeconds = 10; // Default duration
+	var viewStart = 0;          // Left edge of viewport in seconds
+	var viewEnd = 10;           // Right edge of viewport in seconds
+	var isDragging = false;
+	var lastMouseX = 0;
+
+	
+	function getTypeColor(type) {
+		if (!type) return "hsl(0, 0%, 70%)"; // Default grey
+
+		// 1. Simple hash: convert string characters to a number
+		var hash = 0;
+		for (var i = 0; i < type.length; i++) {
+			hash = type.charCodeAt(i) + ((hash << 5) - hash);
+		}
+
+		// 2. Use the hash to pick a Hue (0-360)
+		var hue = Math.abs(hash % 360);
+		
+		// 3. Set Saturation to 35% and Lightness to 65% for pleasant, desaturated tones
+		return "hsl(" + hue + ", 35%, 65%)";
+	}
+
+function drawTimeline() {
+    var w = timelineCanvas.width;
+    var h = timelineCanvas.height;
+    var viewDuration = viewEnd - viewStart;
+    var fps = parseInt(fpsDOM.value) || 30;
+    var frameDuration = 1 / fps;
+    
+    tCtx.clearRect(0, 0, w, h);
+
+    // --- 0. DRAW NEGATIVE TIME OVERLAY ---
+    if (viewStart < 0) {
+        var zeroX = (-viewStart / viewDuration) * w;
+        if (zeroX > 0 && zeroX < w) {
+            tCtx.fillStyle = "rgba(0, 0, 0, 0.4)";
+            tCtx.fillRect(0, 0, zeroX, h);
+            tCtx.strokeStyle = "#888"; 
+            tCtx.lineWidth = 2;
+            tCtx.beginPath();
+            tCtx.moveTo(zeroX, 0);
+            tCtx.lineTo(zeroX, h);
+            tCtx.stroke();
+        } else if (viewEnd < 0) {
+            tCtx.fillStyle = "rgba(0, 0, 0, 0.6)"; 
+            tCtx.fillRect(0, 0, w, h);
+        }
+    }
+
+    // --- 1. DRAW FRAME LINES (Purple) ---
+    if (viewDuration < 2) {
+        tCtx.strokeStyle = "#f3f";
+        tCtx.lineWidth = 1;
+        var firstFrameIdx = Math.ceil(viewStart / frameDuration);
+        var lastFrameIdx = Math.floor(viewEnd / frameDuration);
+        for (var f = firstFrameIdx; f <= lastFrameIdx; f++) {
+            var frameTime = f * frameDuration;
+            var x = ((frameTime - viewStart) / viewDuration) * w;
+            tCtx.beginPath(); tCtx.moveTo(x, 0); tCtx.lineTo(x, h); tCtx.stroke();
+        }
+    }
+
+    // --- 2. DYNAMIC SECOND/MINUTE MARKERS ---
+    var interval = 1; 
+    if (viewDuration > 10) interval = 5;
+    if (viewDuration > 60) interval = 10;
+    if (viewDuration > 300) interval = 60;
+    if (viewDuration > 1800) interval = 300;
+    if (viewDuration > 3600) interval = 3600;
+    if (viewDuration < 5) interval = 0.5;
+    if (viewDuration < 2) interval = 0.1;
+
+    tCtx.strokeStyle = "#555";
+    tCtx.fillStyle = "#888";
+    tCtx.font = "10px Arial";
+    tCtx.lineWidth = 2;
+
+    var firstMarker = Math.ceil(viewStart / interval) * interval;
+    for (var i = firstMarker; i <= viewEnd; i += interval) {
+        var x = ((i - viewStart) / viewDuration) * w;
+        tCtx.beginPath();
+        tCtx.moveTo(x, 0);
+        tCtx.lineTo(x, h);
+        tCtx.stroke();
+
+        var label = i.toFixed(1) + "s";
+        if (i >= 3600) label = (i / 3600).toFixed(1) + "h";
+        else if (i >= 60) label = (i / 60).toFixed(1) + "m";
+        tCtx.fillText(label, x + 2, h - 5);
+    }
+
+    // --- 3. UPDATE THE TOP LABELS ---
+    function formatTime(seconds) {
+        if (seconds >= 3600) return (seconds / 3600).toFixed(1) + "h";
+        if (seconds >= 60) return (seconds / 60).toFixed(1) + "m";
+        return seconds.toFixed(1) + "s";
+    }
+    var startLabelEl = document.getElementById('startTimeLabel');
+    if (startLabelEl) startLabelEl.innerText = formatTime(viewStart);
+    var endLabelEl = document.getElementById('totalTimeLabel');
+    if (endLabelEl) endLabelEl.innerText = formatTime(viewEnd);
+
+    // --- 4. DRAW EVENTS (THE MISSING PART) ---
+    for (var j = 0; j < timelineEvents.length; j++) {
+        var evt = timelineEvents[j];
+        // Draw if the event falls within the current viewport
+        if (evt.time >= viewStart && evt.time <= viewEnd) {
+            var ex = ((evt.time - viewStart) / viewDuration) * w;
+            var ey = h / 2;
+            var color = getTypeColor(evt.type);
+            tCtx.fillStyle = color;
+
+            if (j === currentEventIndex) {
+                // Selected: White halo + colored center
+                tCtx.strokeStyle = "white";
+                tCtx.lineWidth = 2;
+                tCtx.beginPath();
+                tCtx.arc(ex, ey, 7, 0, Math.PI * 2);
+                tCtx.stroke();
+                tCtx.beginPath();
+                tCtx.arc(ex, ey, 5, 0, Math.PI * 2);
+                tCtx.fill();
+                tCtx.fillStyle = "white";
+                tCtx.fillText("Selected", ex - 20, ey - 12);
+            } else {
+                // Regular: Just the colored dot
+                tCtx.beginPath();
+                tCtx.arc(ex, ey, 4, 0, Math.PI * 2);
+                tCtx.fill();
+            }
+        }
+    }
+}
+
+// PANNING: Click and Drag
+timelineCanvas.addEventListener('mousedown', function(e) {
+    isDragging = true;
+    lastMouseX = e.clientX;
+});
+
+window.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    
+    var deltaX = e.clientX - lastMouseX;
+    var viewDuration = viewEnd - viewStart;
+    var secondsPerPixel = viewDuration / timelineCanvas.width;
+    
+    // Shift the viewport
+    var shift = deltaX * secondsPerPixel;
+    viewStart -= shift;
+    viewEnd -= shift;
+    
+    lastMouseX = e.clientX;
+    drawTimeline();
+});
+
+window.addEventListener('mouseup', function() {
+    isDragging = false;
+});
+
+// ZOOMING: Mouse Wheel
+timelineCanvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    
+    var zoomIntensity = 0.1;
+    var delta = e.deltaY > 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
+    
+    // Zoom centered on mouse position
+    var rect = timelineCanvas.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left;
+    var mouseTime = viewStart + (mouseX / timelineCanvas.width) * (viewEnd - viewStart);
+    
+    var newDuration = (viewEnd - viewStart) * delta;
+    
+// Prevent zooming in too far (0.1s), 
+// but allow zooming out up to 24 hours (86400s)
+if (newDuration < 0.1 || newDuration > 86400) return;
+
+    // Redistribute duration around the mouseTime
+    var ratio = mouseX / timelineCanvas.width;
+    viewStart = mouseTime - (ratio * newDuration);
+    viewEnd = viewStart + newDuration;
+    
+    drawTimeline();
+}, { passive: false });
+
+// Handle clicking on the timeline to select an event
+// even when zoomed in..
+timelineCanvas.addEventListener('mousedown', function(e) {
+    // 1. Start the dragging state (for panning)
+    isDragging = true;
+    var lastMouseXAtStart = e.clientX; 
+
+    var rect = timelineCanvas.getBoundingClientRect();
+    var mouseX = e.clientX - rect.left;
+    var scaleX = timelineCanvas.width / rect.width;
+    var actualX = mouseX * scaleX;
+    
+    // --- THE KEY CHANGE IS HERE ---
+    // Instead of totalTimelineSeconds, we calculate based on the current view
+    var viewDuration = viewEnd - viewStart;
+    var clickedTime = viewStart + (actualX / timelineCanvas.width) * viewDuration;
+    // ------------------------------
+    
+    // Find the closest event within a small threshold
+    // We make the threshold relative to the zoom level so it feels consistent
+    var closestIndex = -1;
+    var minDiff = viewDuration * 0.05; // 5% of current view width
+    
+    for (var i = 0; i < timelineEvents.length; i++) {
+        var diff = Math.abs(timelineEvents[i].time - clickedTime);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closestIndex = i;
+        }
+    }
+    
+    if (closestIndex !== -1) {
+        currentEventIndex = closestIndex;
+        updateEditor();
+        drawTimeline();
+    }
+    
+    // Store the X for the move event to track panning
+    lastMouseX = e.clientX;
+});
+
+	
+    </script>
+   <script id="json crud">
+   
+   // Event Management State
+var currentEventIndex = -1;
+var timelineEvents = []; // This will hold your JSON event array
+
+// keeps next and previous working logically..
+function sortTimeline() {
+    if (timelineEvents.length === 0) return;
+
+    // 1. Save the reference to the currently selected event
+    // We store the actual object reference, not the index
+    var selectedEventRef = null;
+    if (currentEventIndex !== -1) {
+        selectedEventRef = timelineEvents[currentEventIndex];
+    }
+
+    // 2. Sort the array by the 'time' property (ascending)
+    timelineEvents.sort(function(a, b) {
+        return a.time - b.time;
+    });
+
+    // 3. Find the new index of the previously selected event
+    if (selectedEventRef) {
+        currentEventIndex = timelineEvents.indexOf(selectedEventRef);
+    }
+
+    // 4. Refresh the UI
+    updateEditor();
+    drawTimeline();
+}
+
+
+
+function eventPrev() {
+    if (currentEventIndex > 0) {
+        currentEventIndex--;
+        updateEditor();
+		drawTimeline();
+    }
+}
+
+function eventNext() {
+    if (currentEventIndex < timelineEvents.length - 1) {
+        currentEventIndex++;
+        updateEditor();
+		drawTimeline();
+    }
+}
+
+function eventAdd() {
+    var newEvent = { time: 0, type: "move", target: "sprite1", params: {} };
+    timelineEvents.push(newEvent);
+    
+    // Instead of setting currentEventIndex manually, let sort handle it
+    currentEventIndex = timelineEvents.length - 1; 
+    
+    sortTimeline(); // This will sort and then re-find the index
+}
+
+
+
+function updateEditor() {
+    var editor = document.getElementById('jsonEditor');
+    var status = document.getElementById('eventStatus');
+    if (currentEventIndex === -1) {
+        editor.value = "";
+        status.innerText = "No event selected";
+    } else {
+        var evt = timelineEvents[currentEventIndex];
+        // Pretty print the JSON with 4 spaces
+        editor.value = JSON.stringify(evt, null, 4);
+        status.innerText = "Editing Event #" + (currentEventIndex + 1);
+    }
+}
+
+function applyEventChange() {
+    try {
+        var updatedEvent = JSON.parse(document.getElementById('jsonEditor').value);
+        timelineEvents[currentEventIndex] = updatedEvent;
+        
+        // Since the time might have changed, we MUST re-sort
+        sortTimeline(); 
+    } catch (e) {
+        alert("Invalid JSON format!");
+    }
+}
+
+function eventDelete() {
+    if (currentEventIndex > -1) {
+        timelineEvents.splice(currentEventIndex, 1);
+        
+        // After deleting, we should check if the next event is now the selected one
+        // or reset to -1. sortTimeline will handle the array cleanup.
+        currentEventIndex = -1; 
+        sortTimeline();
+    }
+}
+
+   </script>
+	
+</body>
+</html>

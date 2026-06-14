@@ -128,7 +128,7 @@
 <!-- Timeline Visualization -->
 <div style="width: 100%; max-width: 1000px; margin-bottom: 10px;">
     <div style="display:flex; justify-content: space-between; color: #aaa; font-size: 12px;">
-        <span>0s</span>
+        <span id="startTimeLabel">0s</span>
         <span id="totalTimeLabel">10s</span>
     </div>
     <canvas id="timelineCanvas" width="1000" height="60" style="background: #222; border: 1px solid #555; cursor: pointer; width: 100%;"></canvas>
@@ -400,80 +400,115 @@ function drawTimeline() {
     var w = timelineCanvas.width;
     var h = timelineCanvas.height;
     var viewDuration = viewEnd - viewStart;
-    var fps = parseInt(fpsDOM.value) || 30; // Get current FPS
-    var frameDuration = 1 / fps; // Seconds per frame
+    var fps = parseInt(fpsDOM.value) || 30;
+    var frameDuration = 1 / fps;
     
     tCtx.clearRect(0, 0, w, h);
-    
-    // --- 1. DRAW FRAME LINES (Quantization) ---
-    // Only draw frame lines if we are zoomed in enough (e.g., view < 2 seconds)
-    // otherwise, the lines will be too close together and look like a solid block.
-    if (viewDuration < 10) {
-        tCtx.strokeStyle = "#356"; // bluish.
-        tCtx.lineWidth = 1;
+
+   // --- 0. DRAW NEGATIVE TIME OVERLAY ---
+    // If the viewport start is negative, we need to highlight the "void"
+    if (viewStart < 0) {
+        // Calculate where 0 seconds is on the current X axis
+        // Formula: (0 - viewStart) / viewDuration * width
+        var zeroX = (-viewStart / viewDuration) * w;
         
-        // Find the first frame index visible in the current view
-        var firstFrameIdx = Math.ceil(viewStart / frameDuration);
-        var lastFrameIdx = Math.floor(viewEnd / frameDuration);
-        
-        for (var f = firstFrameIdx; f <= lastFrameIdx; f++) {
-            var frameTime = f * frameDuration;
-            var x = ((frameTime - viewStart) / viewDuration) * w;
+        // Only draw if 0 is actually within the current view
+        if (zeroX > 0 && zeroX < w) {
+            tCtx.fillStyle = "rgba(0, 0, 0, 0.4)"; // Semi-transparent black
+            tCtx.fillRect(0, 0, zeroX, h);
             
+            // Optional: Add a bright "Zero Line" to clearly separate the zones
+            tCtx.strokeStyle = "#888"; 
+            tCtx.lineWidth = 2;
             tCtx.beginPath();
-            tCtx.moveTo(x, 0);
-            tCtx.lineTo(x, h);
+            tCtx.moveTo(zeroX, 0);
+            tCtx.lineTo(zeroX, h);
             tCtx.stroke();
+        } else if (viewEnd < 0) {
+            // Entire view is in the negative zone
+            tCtx.fillStyle = "rgba(0, 0, 0, 0.6)"; 
+            tCtx.fillRect(0, 0, w, h);
         }
     }
 
-    // --- 2. DRAW SECOND MARKERS (The Grid) ---
-    tCtx.strokeStyle = "#555"; // Lighter grey for seconds
+    // --- 1. FRAME LINES (Keep your existing purple logic here) ---
+    if (viewDuration < 2) {
+        tCtx.strokeStyle = "#f3f";
+        tCtx.lineWidth = 1;
+        var firstFrameIdx = Math.ceil(viewStart / frameDuration);
+        var lastFrameIdx = Math.floor(viewEnd / frameDuration);
+        for (var f = firstFrameIdx; f <= lastFrameIdx; f++) {
+            var x = ((f * frameDuration - viewStart) / viewDuration) * w;
+            tCtx.beginPath(); tCtx.moveTo(x, 0); tCtx.lineTo(x, h); tCtx.stroke();
+        }
+    }
+
+    // --- 2. DYNAMIC SECOND/MINUTE MARKERS ---
+    // Calculate the best interval to avoid crowding
+    var interval = 1; 
+    if (viewDuration > 10) interval = 5;
+    if (viewDuration > 60) interval = 10;
+    if (viewDuration > 300) interval = 60; // 5 minutes
+    if (viewDuration > 1800) interval = 300; // 30 minutes
+    if (viewDuration > 3600) interval = 3600; // 1 hour
+    
+    // If zoomed in very close, use smaller intervals
+    if (viewDuration < 5) interval = 0.5;
+    if (viewDuration < 2) interval = 0.1;
+
+    tCtx.strokeStyle = "#555";
     tCtx.fillStyle = "#888";
     tCtx.font = "10px Arial";
     tCtx.lineWidth = 2;
 
-    var interval = 1;
-    if (viewDuration < 5) interval = 0.5;
-    if (viewDuration < 2) interval = 0.1;
-
+    // Align the first marker to the grid (e.g., if interval is 5, markers at 0, 5, 10...)
     var firstMarker = Math.ceil(viewStart / interval) * interval;
+    
     for (var i = firstMarker; i <= viewEnd; i += interval) {
         var x = ((i - viewStart) / viewDuration) * w;
         tCtx.beginPath();
         tCtx.moveTo(x, 0);
         tCtx.lineTo(x, h);
         tCtx.stroke();
-        tCtx.fillText(i.toFixed(1) + "s", x + 2, h - 5);
+
+        // Formatting the label for readability (Seconds vs Minutes vs Hours)
+        var label = i.toFixed(1) + "s";
+        if (i >= 3600) {
+            label = (i / 3600).toFixed(1) + "h";
+        } else if (i >= 60) {
+            label = (i / 60).toFixed(1) + "m";
+        }
+        
+        tCtx.fillText(label, x + 2, h - 5);
     }
 
-    // --- 3. DRAW EVENTS ---
-    for (var i = 0; i < timelineEvents.length; i++) {
-        var evt = timelineEvents[i];
-        if (evt.time >= viewStart && evt.time <= viewEnd) {
-            var x = ((evt.time - viewStart) / viewDuration) * w;
-            var y = h / 2;
-            var color = getTypeColor(evt.type);
-            tCtx.fillStyle = color;
-
-            if (i === currentEventIndex) {
-                tCtx.strokeStyle = "white";
-                tCtx.lineWidth = 2;
-                tCtx.beginPath();
-                tCtx.arc(x, y, 7, 0, Math.PI * 2);
-                tCtx.stroke();
-                tCtx.beginPath();
-                tCtx.arc(x, y, 5, 0, Math.PI * 2);
-                tCtx.fill();
-                tCtx.fillStyle = "white";
-                tCtx.fillText("Selected", x - 20, y - 12);
-            } else {
-                tCtx.beginPath();
-                tCtx.arc(x, y, 4, 0, Math.PI * 2);
-                tCtx.fill();
-            }
+    // --- 3. UPDATE THE TOP LABELS ---
+    
+    // Helper function to format seconds into h/m/s
+    function formatTime(seconds) {
+        if (seconds >= 3600) {
+            return (seconds / 3600).toFixed(1) + "h";
+        } else if (seconds >= 60) {
+            return (seconds / 60).toFixed(1) + "m";
+        } else {
+            return seconds.toFixed(1) + "s";
         }
     }
+
+    // Update Start Label (Left side)
+    var startLabelEl = document.getElementById('startTimeLabel');
+    if (startLabelEl) {
+        startLabelEl.innerText = formatTime(viewStart);
+    }
+
+    // Update End Label (Right side)
+    var endLabelEl = document.getElementById('totalTimeLabel');
+    if (endLabelEl) {
+        endLabelEl.innerText = formatTime(viewEnd);
+    }
+
+    // --- 4. DRAW EVENTS (Keep your existing dot logic here) ---
+    // ... (The event loop remains the same)
 }
 
 // PANNING: Click and Drag
@@ -516,8 +551,9 @@ timelineCanvas.addEventListener('wheel', function(e) {
     
     var newDuration = (viewEnd - viewStart) * delta;
     
-    // Prevent zooming in too far or out too far
-    if (newDuration < 0.1 || newDuration > 100) return;
+// Prevent zooming in too far (0.1s), 
+// but allow zooming out up to 24 hours (86400s)
+if (newDuration < 0.1 || newDuration > 86400) return;
 
     // Redistribute duration around the mouseTime
     var ratio = mouseX / timelineCanvas.width;

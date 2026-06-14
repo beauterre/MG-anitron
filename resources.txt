@@ -1,0 +1,30 @@
+Free Windows tools to convert image frames + audio into MP4:
+
+FFmpeg
+Website: https://ffmpeg.org
+
+Example command (for PNG frames named frame0001.png, frame0002.png, etc.):
+
+ffmpeg -framerate 30 -i frame%04d.png -i audio.wav -c:v libx264 -pix_fmt yuv420p -c:a aac output.mp4
+
+Parameters:
+- -framerate 30      = 30 FPS
+- frame%04d.png      = frame0001.png, frame0002.png, ...
+- audio.wav          = input audio file
+- output.mp4         = final video
+
+Other free GUI alternatives:
+
+Shotcut
+https://shotcut.org
+
+OpenShot Video Editor
+https://www.openshot.org
+
+Avidemux
+https://avidemux.sourceforge.net
+
+Notes:
+- FFmpeg is usually the fastest and most reliable option for thousands of frames.
+- MP4 (H.264) files are much smaller than AVI files.
+- If your frames are JPGs or use a different naming pattern, adjust the input filename pattern accordingly.

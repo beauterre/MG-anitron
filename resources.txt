@@ -28,3 +28,81 @@ Notes:
 - FFmpeg is usually the fastest and most reliable option for thousands of frames.
 - MP4 (H.264) files are much smaller than AVI files.
 - If your frames are JPGs or use a different naming pattern, adjust the input filename pattern accordingly.
+
+Can a local HTML file launch FFmpeg?
+
+Short answer:
+No. A normal HTML page running in a web browser cannot directly launch FFmpeg.exe or any other program on your computer. Browsers block this for security reasons.
+
+Possible solutions:
+
+1. HTML + Local Helper Application
+
+HTML page
+    ↓
+Local web server (Node.js, Python, C#, etc.)
+    ↓
+FFmpeg.exe
+
+The HTML/JavaScript sends requests to a small local application, and that application launches FFmpeg.
+
+2. Electron Application
+
+Electron App
+    ↓
+child_process.spawn()
+    ↓
+FFmpeg.exe
+
+Electron packages HTML/CSS/JavaScript as a desktop application and can launch external programs.
+
+3. Batch File Launcher
+
+Create a batch file containing:
+
+ffmpeg -framerate 30 -i frame%04d.png -i audio.wav output.mp4
+
+The user then runs the batch file manually.
+
+4. FFmpeg in the Browser (WebAssembly)
+
+Project:
+https://ffmpegwasm.netlify.app
+
+Architecture:
+
+HTML
+    ↓
+JavaScript
+    ↓
+ffmpeg.wasm
+    ↓
+MP4 output
+
+This runs FFmpeg inside the browser without requiring FFmpeg.exe.
+
+Important:
+
+A local HTML file opened as:
+
+file:///C:/something/index.html
+
+cannot directly execute commands such as:
+
+run("ffmpeg.exe");
+
+or
+
+spawn("ffmpeg.exe");
+
+unless it is running inside a desktop application framework such as Electron or communicating with a local helper process.
+
+For a Windows-only personal tool, one of the simplest approaches is:
+
+HTML interface
+    ↓
+Small Node.js backend
+    ↓
+FFmpeg.exe
+
+This provides a simple user interface while allowing full access to FFmpeg.

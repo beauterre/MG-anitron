@@ -55,7 +55,7 @@ The Stage is the "Single Source of Truth" for the current frame.
 
 If this tool helped you with your project or saved you hours of manual work, feel free to buy me a coffee! 
 
-[Still setting up Ko-Fi for support payments](#)
+[Still setting up Ko-Fi for support payments](https://ko-fi.com/)
 
 ---
 *Developed via Synthetic Pair Programming.*

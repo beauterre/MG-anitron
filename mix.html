@@ -16,6 +16,11 @@
         padding: 20px;
     }
 	
+	.small_number
+	{
+	width: 60px; 
+	}
+	
 	#timelineCanvas {
     border-radius: 4px;
     display: block;
@@ -179,11 +184,11 @@
 				
         <div id="video-controls" style="opacity:0.1;">
                 <label>Current Frame: </label>
-                <button onclick="prevFrame()">prev</button>
-                <input type="number" id="frameNum" value="5">
-                <button onclick="nextFrame()">next</button>
+                <button onclick="prevFrame()">◀</button>
+                <input type="number" id="frameNum" value="5"  class="small_number">
+                <button onclick="nextFrame()">▶</button>
 				<label>Timeline FPS: </label>
-				<input type="number" id="timelineFps" value="30" style="width: 50px;" onchange="drawTimeline()">
+				<input type="number" id="timelineFps" value="30" class="small_number" onchange="drawTimeline()">
 
                 <p>
                     <button onclick="loadFrame()">loadFrame</button>
@@ -192,9 +197,9 @@
                 </p>
                 <p>
                     <label>Range start: </label>
-                    <input type="number" id="startFrame" value="5">
+                    <input type="number" id="startFrame" value="5" class="small_number">
                     <label>Range end: </label>
-                    <input type="number" id="endFrame" value="15">
+                    <input type="number" id="endFrame" value="15" class="small_number">
                     <button onclick="render()">Render</button>
                 </p>
         </div>
@@ -211,7 +216,7 @@
 
     <!-- RIGHT SIDE: various Editors -->
 <!-- RIGHT SIDE: Workspace Panel -->
-<div class="workspace-panel">
+<div id="workspace" class="workspace-panel" style="opacity:0.1;">
 
     <!-- Project File Controls -->
     <div class="project-toolbar" style="display: flex; gap: 10px; margin-bottom: 15px; background: #333; padding: 10px; border-radius: 5px;">
@@ -223,17 +228,22 @@
     <div class="tab-nav">
         <button id="btn-tab-events" class="tab-btn active" onclick="switchTab('events')">📅 Events</button>
         <button id="btn-tab-sprites" class="tab-btn" onclick="switchTab('sprites')">🎨 Sprites</button>
+		<button id="btn-tab-stage" class="tab-btn" onclick="switchTab('stage')">🏗️ Stage</button>
     </div>
 
     <!-- EVENT EDITOR SECTION -->
     <div id="sec-events" class="tab-section active">
         <h3>Event Timeline</h3>
         <div class="event-toolbar">
-            <button onclick="eventPrev()">◀ Prev</button>
-            <button onclick="eventNext()">Next ▶</button>
-            <button onclick="eventAdd()">Add +</button>
-            <button onclick="eventEdit()">Edit</button>
-            <button onclick="eventDelete()">Delete</button>
+            <button onclick="eventPrev()">◀</button>
+            <button onclick="eventNext()">▶</button>
+			<select id="spriteSelect">
+			  <option value="defaultsprite">defaultsprite</option>
+				<!-- repopulated by js.. -->
+			</select>
+            <button onclick="eventAdd()">➕</button>
+            <button onclick="eventEdit()">✏️</button>
+            <button onclick="eventDelete()">❌🗑️</button>
         </div>
         <p id="eventStatus">No event selected</p>
         <textarea id="jsonEditor" spellcheck="false"></textarea>
@@ -242,6 +252,15 @@
         </div>
     </div>
 
+
+	<!-- STAGE LIST SECTION -->
+	<div id="sec-stage" class="tab-section">
+		<h3>Stage Instances</h3>
+		<p style="font-size: 12px; color: #aaa;">Showing instances active at current frame</p>
+		<div id="stage-instance-list" style="max-height: 400px; overflow-y: auto; background: #333; border: 1px solid #555; border-radius: 4px;">
+			<!-- Instances will be injected here -->
+		</div>
+	</div>
 	<!-- SPRITE EDITOR SECTION -->
 	<div id="sec-sprites" class="tab-section">
 		<h3>Sprite Properties</h3>
@@ -306,6 +325,10 @@
         if (tabName === 'sprites') {
             populateSpriteList();
         }
+		if (tabName === 'stage') {
+			populateStageList();
+		}
+
     }
 </script>
 <script id="sprite-editor">
@@ -329,7 +352,36 @@ function updatePreview() {
 	console.log("found the img ");
     var cw = previewCanvas.width;
     var ch = previewCanvas.height;
-    pCtx.clearRect(0, 0, cw, ch);
+	// create grid of dark and light grey transparancy
+	pCtx.fillStyle = "#cccccc"; // Mid grey
+	pCtx.fillRect(0, 0, cw, ch);
+	pCtx.fillStyle = "#e5e5e5"; // Light grey	
+	
+    console.log("found the img ");
+    var cw = previewCanvas.width;
+    var ch = previewCanvas.height;
+    var gridSize = 20;
+
+    // 1. Fill the base color (dark grey)
+    pCtx.fillStyle = "#888";
+    pCtx.fillRect(0, 0, cw, ch);
+
+    // 2. Draw the checkerboard squares (light grey)
+    pCtx.fillStyle = "#aaa";
+    for (var x = 0; x < cw; x += gridSize) {
+        for (var y = 0; y < ch; y += gridSize) {
+            // Use the index of the square, not the pixel coordinate
+            // (x / 20) gives us 0, 1, 2, 3...
+            var gridX = x / gridSize;
+            var gridY = y / gridSize;
+
+            // If the sum of the coordinates is even, draw a square
+            // This creates the alternating "checker" pattern
+            if ((gridX + gridY) % 2 === 0) {
+                pCtx.fillRect(x, y, gridSize, gridSize);
+            }
+        }
+    }
 
     // 1. Calculate "Scale to Fit" (Letterbox)
     var scale = Math.min(cw / img.width, ch / img.height);
@@ -455,7 +507,6 @@ function saveSpriteAnchor() {
         var feedback = document.getElementById('projectstatus');
         var frameDOM = document.getElementById('frameNum');
        if (feedback) {
-            console.log(feedback); // Should show the HTML element
             feedback.innerText = "select project folder"; 
         } else {
             console.error("Could not find element with ID 'projectstatus'");
@@ -508,17 +559,19 @@ function saveSpriteAnchor() {
         }
     }
 
-    console.log("Final error check: " + error + " (length: " + error.length + ")");
 
     // FIX: Logic was inverted. If length is 0, it means NO errors.
     if (error.length === 0) {
         feedback.innerText = "Assets loaded. Ready.";
-		// show the currentframe
+		// show the currentframe of the video
 		loadFrame();
 //		var noFolder=document.getElementById("no folder");
 //		noFolder.style.display="none";
 		var videoControls=document.getElementById("video-controls");
 		videoControls.style.opacity=1;
+		var workspace=document.getElementById("workspace");
+		workspace.style.opacity=1;
+		drawTimeline();
     } else {
         // FIX: Use innerHTML and straight quotes ''
         feedback.innerHTML = "<p style='color: red;'>" + error + "</p>";
@@ -540,6 +593,19 @@ function saveSpriteAnchor() {
 
         function drawSprite(spriteName, x, y, scale) {
             if (scale === undefined) scale = 1;
+			
+			
+			if (spriteName === "defaultsprite") {
+				ctx.fillStyle = "red";
+				ctx.strokeStyle = "yellow";
+				ctx.lineWidth = 5;
+				
+				// Draw a 100x100 proxy square
+				var size = 100 * scale;
+				ctx.fillRect(x, y, size, size);
+				ctx.strokeRect(x, y, size, size);
+				return; // Exit early; don't try to find an image
+			}
             var img = assetImages[spriteName];
             var config = sprites.find(function(s) { return s.name === spriteName; });
             
@@ -557,13 +623,20 @@ function saveSpriteAnchor() {
             var frameVal = document.getElementById('frameNum').value;
 			frameVal++;
 			frameDOM.value=frameVal;
-			loadFrame();
+			// Inside your frame change logic or drawTimeline:
+			updateStage(); // <--- This does everything
+			
+			
+			drawTimeline();
 		}
 		function prevFrame() {
             var frameVal = document.getElementById('frameNum').value;
 			frameVal--;
 			frameDOM.value=frameVal;
-			loadFrame();
+
+			updateStage(); // <--- This does everything
+			
+			drawTimeline();
 		}
         async function loadFrame() {
             var frameVal = document.getElementById('frameNum').value;
@@ -593,8 +666,14 @@ function saveSpriteAnchor() {
             }
 
 		}
+		/* this is for exporting to numbered video frames */
         async function renderFrame() {
             var frameVal = document.getElementById('frameNum').value;
+			var fpsVal = parseInt(document.getElementById('timelineFps').value) || 30;
+			var currentTime = frameVal / fpsVal;
+			
+			renderStage();
+			// save it..
             var paddedFrame = frameVal.toString().padStart(4, '0');
 
             try {
@@ -658,6 +737,266 @@ function saveSpriteAnchor() {
             }
         }
     </script>
+   <script id="stage management">
+   /* stage keeps the states, position opacity, masks etc, of the sprites and gets filled by enter/leave events */
+	var stage = {
+		width: 1920,
+		height: 1080,
+		background: {
+			type: "rect", 
+			color: "#FFF", 
+			x: 0, y: 0, 
+			width: 1920, height: 1080
+		},
+		instances: {} // Key: "mannetje_0", Value: { sprite: "mannetje", x: 100, y: 100, z: 1, visible: true... }
+	};
+	
+	
+	function rebuildStageState() {
+		// 1. Reset instances to clear the slate for this frame
+		stage.instances = {}; 
+
+		var frameVal = parseInt(document.getElementById('frameNum').value) || 0;
+		var fpsVal = parseInt(document.getElementById('timelineFps').value) || 30;
+		var currentTime = frameVal / fpsVal;
+
+		// 2. Replay all events in chronological order up to now
+		timelineEvents.forEach(evt => {
+			if (evt.time <= currentTime) {
+				applyEventToStage(evt);
+			}
+		});
+	}
+
+	/**
+	 * initializeStage
+	 * Creates the starting state for all sprites based on the project file
+	 */
+	function initializeStage() {
+		// Start with a completely empty instance list.
+		// No library sprites should be here by default.
+		stage.instances = {}; 
+		
+		// We ONLY keep 'video' if you want it as a permanent background 
+		// that doesn't need an "enter" event. 
+		// Otherwise, even 'video' should be handled by an event.
+		stage.instances["video"] = { 
+			sprite: "video", 
+			visible: false, 
+			opacity: 1, 
+			scale: 1, 
+			x: 0, y: 0, z: 0 
+		};
+	}
+
+	function createInstanceName(spriteName) {
+    // Count how many instances of this specific sprite currently exist
+    var count = 0;
+    for (var id in stage.instances) {
+        if (id.startsWith(spriteName + "_")) {
+            count++;
+        }
+    }
+    return spriteName + "_" + count;
+}
+
+	
+	function drawStageBackground()
+	{
+		// for now just a white rectangle, can't change that yet
+		ctx.fillStyle = "#fff"; 
+        ctx.fillRect(0, 0, width, height);
+
+	}
+	/* applyEventToStage
+	   looping through all events up to the current TIME
+	   creates the right state of the animation..
+		we encounter a number of events that will be handled in THIS
+		function that modifies the stage instance list.
+	*/
+		
+	function applyEventToStage(evt) {
+		var instId = evt.instance;
+		if (!instId) return;
+
+		if (evt.type === "enter") {
+			var spriteName = evt.params.sprite; 
+			var spriteDNA = sprites.find(s => s.name === spriteName);
+			
+			// Logic for naming: if "new", generate "mannetje_0"
+			var finalId = instId;
+			if (instId === "new") {
+				var count = 0;
+				for (var id in stage.instances) {
+					if (id.startsWith(spriteName + "_")) count++;
+				}
+				finalId = spriteName + "_" + count;
+			}
+
+			stage.instances[finalId] = {
+				sprite: spriteName,
+				x: evt.params.x !== undefined ? evt.params.x : (spriteDNA ? spriteDNA.x : 0),
+				y: evt.params.y !== undefined ? evt.params.y : (spriteDNA ? spriteDNA.y : 0),
+				z: evt.params.z !== undefined ? evt.params.z : 0,
+				visible: true,
+				opacity: 1,
+				scale: 1
+			};
+			evt.instance = finalId; // Permanent assignment
+			return;
+		}
+
+		var inst = stage.instances[instId];
+		if (!inst) return;
+
+		if (evt.type === "leave") inst.visible = false;
+		if (evt.type === "move") {
+			if (evt.params.x !== undefined) inst.x = evt.params.x;
+			if (evt.params.y !== undefined) inst.y = evt.params.y;
+			if (evt.params.z !== undefined) inst.z = evt.params.z;
+		}
+	}
+
+	
+	function drawStageInstances() 
+	{
+		// 1. Convert instances to array for sorting
+		var sorted = Object.keys(stage.instances).map(id => {
+			return { id: id, ...stage.instances[id] };
+		});
+
+		// 2. Sort by Z-index (lowest first)
+		sorted.sort((a, b) => (a.z || 0) - (b.z || 0));
+
+		// 3. Render each instance
+		sorted.forEach(inst => 
+		{
+			if (inst.visible && inst.sprite !== "video") 
+			{
+				ctx.globalAlpha = inst.opacity;
+				drawSprite(inst.sprite, inst.x, inst.y, inst.scale);
+			}
+		});
+		ctx.globalAlpha = 1.0;
+	}
+	
+	async function updateStage() {
+		// Sequence:
+		// 1. Draw the background video frame first
+		await loadFrame(); 
+		
+		// 2. Calculate who is on stage right now
+		rebuildStageState(); 
+		
+		// 3. Draw those instances on top of the video
+		drawStageInstances();
+		
+		// 4. Update the Stage Tab list (if open)
+		if (document.getElementById('sec-stage').classList.contains('active')) {
+			populateStageList();
+		}
+	}
+	
+	function populateStageList() {
+		var listDiv = document.getElementById('stage-instance-list');
+		if (!listDiv) return;
+
+		var frameVal = parseInt(document.getElementById('frameNum').value) || 0;
+		var fpsVal = parseInt(document.getElementById('timelineFps').value) || 30;
+		var currentTime = frameVal / fpsVal;
+
+		initializeStage(); 
+		timelineEvents.forEach(evt => {
+			if (evt.time <= currentTime) {
+				applyEventToStage(evt);
+			}
+		});
+
+		listDiv.innerHTML = "";
+		
+		// FIX: Get keys from the instances object, NOT the stage root
+		var instanceIds = Object.keys(stage.instances); 
+		
+		if (instanceIds.length === 0) {
+			listDiv.innerHTML = "<div class='sprite-item'>No active instances</div>";
+			return;
+		}
+
+		instanceIds.forEach(id => {
+			var inst = stage.instances[id]; 
+			if (!inst) return; // Only return if the instance doesn't exist at all
+
+			var item = document.createElement('div');
+			item.className = 'sprite-item';
+			
+			var info = '<span><strong>' + id + '</strong> (' + inst.sprite + ')</span> ' +
+					   '<small>z:' + inst.z + ' | x:' + Math.round(inst.x) + ', y:' + Math.round(inst.y) + '</small>';
+			
+			// Visibility Icon: 👁️ if visible, 🕶️ (or ❌) if invisible
+			var eyeIcon = inst.visible ? '👁️' : '🕶️';
+			
+			var actions = '<div style="display:flex; gap:5px;">' +
+						  '<button class="btn-stage-vis" data-id="' + id + '" style="cursor:pointer;">' + eyeIcon + '</button>' +
+						  '<button class="btn-stage-edit" data-id="' + id + '" style="cursor:pointer;">✏️</button>' +
+						  '<button class="btn-stage-del" data-id="' + id + '" style="cursor:pointer;">❌</button>' +
+						  '</div>';
+
+			item.innerHTML = info + actions;
+
+			item.onclick = function(e) {
+				if (e.target.tagName === 'BUTTON') return; 
+				selectInstanceEvent(id);
+			};
+			
+			listDiv.appendChild(item);
+		});
+
+		// Add the new Visibility listener
+		document.querySelectorAll('.btn-stage-vis').forEach(btn => {
+			btn.onclick = function() {
+				var id = this.getAttribute('data-id');
+				stageToggleVisibility(id);
+			};
+		});
+
+		// IMPORTANT: Attach listeners to the buttons AFTER adding them to the DOM
+		// because they are added as HTML strings
+		document.querySelectorAll('.btn-stage-edit').forEach(btn => {
+			btn.onclick = function() {
+				var id = this.getAttribute('data-id');
+				stageEditInstance(id);
+			};
+		});
+
+		document.querySelectorAll('.btn-stage-del').forEach(btn => {
+			btn.onclick = function() {
+				var id = this.getAttribute('data-id');
+				stageDeleteInstance(id);
+			};
+		});	
+	}
+
+/**
+ * selectInstanceEvent
+ * the most recent event that affected this instance 
+ * and jumps editor to it.
+ */
+function selectInstanceEvent(instanceId) {
+    // Search timeline backwards (from end to start) to find the last event for this instance
+    for (var i = timelineEvents.length - 1; i >= 0; i--) {
+        var evt = timelineEvents[i];
+        var target = evt.instance;
+        
+        if (target === instanceId) {
+            currentEventIndex = i;
+            updateEditor();
+            drawTimeline();
+            return;
+        }
+    }
+}
+
+    </script>
 	
    <script id="timeline visualisation">
 	var fpsDOM = document.getElementById('timelineFps');
@@ -670,13 +1009,13 @@ function saveSpriteAnchor() {
 	var lastMouseX = 0;
 
 	
-	function getTypeColor(type) {
-		if (!type) return "hsl(0, 0%, 70%)"; // Default grey
+	function getColorFromString(str) {
+		if (!str) return "hsl(0, 0%, 70%)"; // Default grey
 
 		// 1. Simple hash: convert string characters to a number
 		var hash = 0;
-		for (var i = 0; i < type.length; i++) {
-			hash = type.charCodeAt(i) + ((hash << 5) - hash);
+		for (var i = 0; i < str.length; i++) {
+			hash = str.charCodeAt(i) + ((hash << 5) - hash);
 		}
 
 		// 2. Use the hash to pick a Hue (0-360)
@@ -686,7 +1025,8 @@ function saveSpriteAnchor() {
 		return "hsl(" + hue + ", 35%, 65%)";
 	}
 
-function drawTimeline() {
+function drawTimeline() 
+{
     var w = timelineCanvas.width;
     var h = timelineCanvas.height;
     var viewDuration = viewEnd - viewStart;
@@ -773,7 +1113,7 @@ function drawTimeline() {
         if (evt.time >= viewStart && evt.time <= viewEnd) {
             var ex = ((evt.time - viewStart) / viewDuration) * w;
             var ey = h / 2;
-            var color = getTypeColor(evt.type);
+            var color = getColorFromString(evt.type);
             tCtx.fillStyle = color;
 
             if (j === currentEventIndex) {
@@ -796,7 +1136,24 @@ function drawTimeline() {
             }
         }
     }
+
+	// draw currentframe indicator.
+	var frameVal = parseInt(document.getElementById('frameNum').value) || 0;
+	var fpsVal = parseInt(document.getElementById('timelineFps').value) || 30;
+
+	var frameTime = frameVal / fpsVal; 
+	// Example: 60 frames / 30 fps = 2.0 seconds
+
+    ex = ((frameTime - viewStart) / viewDuration) * w;
+    tCtx.strokeStyle = "white";
+    tCtx.lineWidth = 3;
+	tCtx.beginPath();
+    tCtx.moveTo(ex, 0);
+    tCtx.lineTo(ex, h);
+    tCtx.stroke();
+    
 }
+
 
 // PANNING: Click and Drag
 timelineCanvas.addEventListener('mousedown', function(e) {
@@ -883,6 +1240,7 @@ timelineCanvas.addEventListener('mousedown', function(e) {
     
     if (closestIndex !== -1) {
         currentEventIndex = closestIndex;
+		// set the current time to the time ing this event.
         updateEditor();
         drawTimeline();
     }
@@ -942,15 +1300,38 @@ function eventNext() {
 		drawTimeline();
     }
 }
-
+/* default event is "enter" */
 function eventAdd() {
-    var newEvent = { time: 0, type: "move", target: "sprite1", params: {} };
+    // 1. Get current time from playhead
+    var frameVal = parseInt(document.getElementById('frameNum').value) || 0;
+    var fpsVal = parseInt(document.getElementById('timelineFps').value) || 30;
+    var frameTime = frameVal / fpsVal; 
+
+    // 2. Define the default sprite to add 
+   var defaultSprite = document.getElementById('spriteSelect').value;
+
+    // 3. Calculate the next available instance name (e.g., "mannetje_0")
+    // We call the function we created earlier
+    var nextInstanceId = createInstanceName(defaultSprite);
+
+    // 4. Create the "enter" event
+    var newEvent = { 
+        time: frameTime, 
+        type: "enter", 
+        instance: nextInstanceId, // The generated ID
+        params: { 
+            sprite: defaultSprite, // The name of the defaultsprite at creation time
+            x: stage.width/2,                // Default center screen
+            y: stage.height/2, 
+            z: 1 
+        } 
+    };
+
     timelineEvents.push(newEvent);
     
-    // Instead of setting currentEventIndex manually, let sort handle it
+    // Set the index to the new event and sort
     currentEventIndex = timelineEvents.length - 1; 
-    
-    sortTimeline(); // This will sort and then re-find the index
+    sortTimeline(); 
 }
 
 
@@ -963,6 +1344,17 @@ function updateEditor() {
         status.innerText = "No event selected";
     } else {
         var evt = timelineEvents[currentEventIndex];
+		// also set the currentframe according to the event time.
+		var frameTime = evt.time; // time in seconds (e.g., 2.0)
+		var fpsVal = parseInt(document.getElementById('timelineFps').value) || 30;
+
+		// Multiply seconds by the frames per second
+		var frameVal = frameTime * fpsVal; 
+		// Example: 2.0 seconds * 30 fps = 60 frames
+		document.getElementById('frameNum').value=frameVal;
+		// Example: 60 frames / 30 fps = 2.0 seconds
+		// since we call drawTimeLine after.. this is going to display.
+		
         // Pretty print the JSON with 4 spaces
         editor.value = JSON.stringify(evt, null, 4);
         status.innerText = "Editing Event #" + (currentEventIndex + 1);
@@ -1041,8 +1433,10 @@ async function loadProject() {
             multiple: false,
             types: [{
                 description: 'Project File',
-                accept: {'application/json': ['.json']},
-            }],
+				accept: {
+					'application/json': ['.json', '.ant'], // Added .ant here
+				}            
+				}],
         });
 
         const file = await fileHandle.getFile();

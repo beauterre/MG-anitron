@@ -427,7 +427,7 @@ function updatePreview() {
      * Renders the list of all available sprites in the sidebar
      */
 function populateSpriteList() {
-console.log("populateSpriteList called");
+	console.log("populateSpriteList called");
     var listDiv = document.getElementById('sprite-list');
     if (!listDiv) return;
     
@@ -456,6 +456,8 @@ console.log("populateSpriteList called");
             listDiv.appendChild(item);
         }
     }
+
+	
 }
 
     /**
@@ -751,6 +753,31 @@ function saveSpriteAnchor() {
 		instances: {} // Key: "mannetje_0", Value: { sprite: "mannetje", x: 100, y: 100, z: 1, visible: true... }
 	};
 	
+	var instanceOverrides = {}; // { "mannetje_0": false, "vrouwtje_1": true }, allows for temporary hiding
+		
+	
+	function stageToggleVisibility(instanceId) 
+	{
+		var inst = stage.instances[instanceId];
+		if (!inst) return;
+
+		// 1. Update the Override list (The immediate state)
+		instanceOverrides[instanceId] = !inst.visible;
+
+		// 2. Update the Timeline (The persistent record)
+		var frameTime = (parseInt(document.getElementById('frameNum').value) || 0) / (parseInt(document.getElementById('timelineFps').value) || 30);
+		
+		var newEvent = {
+			time: frameTime,
+			instance: instanceId,
+			type: instanceOverrides[instanceId] ? "enter" : "leave",
+			params: instanceOverrides[instanceId] ? { sprite: inst.sprite, x: inst.x, y: inst.y, z: inst.z } : {}
+		};
+
+		timelineEvents.push(newEvent);
+		sortTimeline();
+		updateStage();
+	}
 	
 	function rebuildStageState() {
 		// 1. Reset instances to clear the slate for this frame
@@ -766,6 +793,14 @@ function saveSpriteAnchor() {
 				applyEventToStage(evt);
 			}
 		});
+		
+		  // 3. The User Override Authority (Toggles visibility)
+		for (var id in instanceOverrides) 
+		{
+			if (stage.instances[id]) {
+				stage.instances[id].visible = instanceOverrides[id];
+			}
+		}
 	}
 
 	/**
@@ -1332,6 +1367,8 @@ function eventAdd() {
     // Set the index to the new event and sort
     currentEventIndex = timelineEvents.length - 1; 
     sortTimeline(); 
+	
+	updateStage(); // show if something happened..
 }
 
 
@@ -1368,6 +1405,8 @@ function applyEventChange() {
         
         // Since the time might have changed, we MUST re-sort
         sortTimeline(); 
+		
+        updateStage(); 
     } catch (e) {
         alert("Invalid JSON format!");
     }

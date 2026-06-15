@@ -51,11 +51,7 @@ The Stage is the "Single Source of Truth" for the current frame.
 - [ ] **Collision Detection**: Trigger events based on instance overlaps.
 - [ ] **Audio Integration**: Couple sound effects to timeline events.
 
-## ☕ Support
-
-If this tool helped you with your project or saved you hours of manual work, feel free to buy me a coffee! 
-
-[Still setting up Ko-Fi for support payments](https://ko-fi.com/)
-
+**☕ Support: Link coming soon!**
+I'll use the standard *sponsor* button in github..
 ---
 *Developed via Synthetic Pair Programming.*

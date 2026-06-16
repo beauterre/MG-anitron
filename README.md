@@ -1,5 +1,7 @@
 # MG-Anitron 🎬
 
+https://beauterre.github.io/MG-anitron/
+
 **MG-Anitron** is a lightweight, browser-based animation and composition engine designed for overlaying sprites and elements onto video frame sequences. 
 
 Unlike traditional editors that simply draw pixels, MG-Anitron operates as a **state-machine simulation**. It decouples the timeline (the instructions) from the stage (the current state), allowing for high-precision control over instances, layering, and timing.

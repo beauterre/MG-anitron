@@ -12,7 +12,7 @@ Unlike traditional editors that simply draw pixels, MG-Anitron operates as a **s
 ## 🚀 Core Concepts
 
 ### 1. The Edit Decision List (The Authority)
-The project is driven by a JSON-based **Edit Decision List (EDL)**. Every action—whether it's a sprite entering the screen, moving to a new coordinate, or leaving the scene—is a specific entry in this list.
+The project is driven by a JSON-based **Edit Decision List (EDL)**. Every action, whether it's a sprite entering the screen, moving to a new coordinate, or leaving the scene, is a specific entry in this list.
 - **Chronological Processing**: The engine replays the EDL from time `0` to the current playhead to determine exactly what should be on screen.
 - **JSON-Driven**: Every EDL entry is a JSON object, making the project easily scriptable or integrable with other professional tools.
 
@@ -22,7 +22,44 @@ The Stage is the "Single Source of Truth" for the current frame.
 - **Z-Order Rendering**: Elements are rendered based on a Z-index, ensuring backgrounds stay back and overlays stay front.
 
 ### 3. The Pipeline
-`EDL Instructions` →\rightarrow→ `Stage State` →\rightarrow→ `Canvas Render`
+`EDL Instructions` → `Stage State` → `Canvas Render`
+
+### 4. ⏳ The Timeline & Temporal Navigation
+
+The Ani-tron timeline is a high-precision temporal coordinate system. Rather than a linear tape, it operates as a **virtual window into the EDL**, allowing for non-linear navigation and extreme scale.
+
+#### 1. Frame-Relative Logic
+The engine treats time as a function of `Frame / FPS`. This ensures that regardless of the playback speed or the target output, the composition remains frame-accurate. By decoupling the playhead from the rendering loop, the engine can "jump" to any point in time and instantly rebuild the stage state.
+
+#### 2. Negative Time & Infinite Horizon
+Unlike traditional editors that start at `0`, Ani-tron supports **Negative Time**. This allows users to set up "pre-roll" events—actions that happen before the official start of the sequence—ensuring that elements are already in motion or correctly positioned when the project hits frame zero.
+
+#### 3. Dynamic Zoom & Panning
+The timeline viewport is fully elastic. Using a combination of mouse-wheel zooming and click-and-drag panning, the user can shift perspectives:
+- **Macro View**: Zoom out to see the entire structure of a multi-minute composition.
+- **Micro View**: Zoom in to a fraction of a second to align events with sub-frame precision.
+- **Adaptive Markers**: Time markers (seconds, minutes, hours) dynamically scale their intervals based on the zoom level, maintaining readability across all scales.
+
+#### 4. The "Replay" Mechanism
+Because the timeline is driven by an Edit Decision List, moving the playhead doesn't just "slide" a frame; it triggers a **State Rebuild**. The engine re-scans the EDL from the beginning of time up to the current playhead, calculating every move, enter, and leave event to determine the exact visual state of the stage at that micro-moment.
+
+
+
+
+### 5. 🧬 Resource Architecture: The SVG Library
+
+To ensure maximum flexibility and interoperability, Ani-tron is evolving toward an **SVG-based Resource Container** model. Instead of relying on loose files or bloated JSON strings, the project utilizes a specialized SVG structure as its primary asset database.
+
+#### Why SVG?
+Traditional bitmap-based projects suffer from resolution loss and massive file sizes. By treating the project file as an SVG, Ani-tron achieves:
+- **Interoperability**: Project assets can be opened, edited, and refined in professional vector tools like **Inkscape** or **Adobe Illustrator**, then re-imported seamlessly.
+- **Resolution Independence**: Core assets are stored as mathematical paths, ensuring the composition remains crystal clear at any scale.
+- **Hybrid Storage**: The SVG `<defs>` section acts as a unified library, housing both complex vector paths and embedded Base64 bitmaps in a single, portable file.
+
+#### The "Database" Workflow
+1. **The Library**: Every sprite, shape, or "Sausage" curve is stored as a unique ID within the SVG's definition layer.
+2. **The Reference**: The **Edit Decision List (EDL)** doesn't store the asset itself, but a reference to the SVG ID.
+3. **The Render**: The engine parses these IDs and renders them to the HTML5 Canvas using `Path2D` for vectors and `Image` objects for bitmaps, combining the power of vector precision with the speed of canvas rasterization.
 
 ---
 
@@ -44,10 +81,7 @@ The Stage is the "Single Source of Truth" for the current frame.
 
 ## 🚦 Getting Started
 
-1. Clone this repository.
-2. Open `index.html` in a modern web browser (Chrome or Edge recommended for File System API support).
-3. Select your project folder containing your video frames (e.g., `video/prod0001.png`) and assets.
-4. Start animating!
+1. I''ll make a nice demo.. right now.. you can add a defaultsprite. change its place.
 
 ## 🔮 Future Development: Primitive Engine
 

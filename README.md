@@ -9,10 +9,10 @@ Unlike traditional editors that simply draw pixels, MG-Anitron operates as a **s
 
 ## 🚀 Core Concepts
 
-### 1. The Timeline (The Authority)
-The project is driven by a JSON-based timeline. Every action—whether it's a sprite entering the screen, moving to a new coordinate, or leaving the scene—is an **Event**. 
-- **Chronological Processing**: The engine replays events from time `0` to the current playhead to determine exactly what should be on screen.
-- **JSON-Driven**: Every event is a JSON object, making the project easily scriptable or integrable with other tools.
+### 1. The Edit Decision List (The Authority)
+The project is driven by a JSON-based **Edit Decision List (EDL)**. Every action—whether it's a sprite entering the screen, moving to a new coordinate, or leaving the scene—is a specific entry in this list.
+- **Chronological Processing**: The engine replays the EDL from time `0` to the current playhead to determine exactly what should be on screen.
+- **JSON-Driven**: Every EDL entry is a JSON object, making the project easily scriptable or integrable with other professional tools.
 
 ### 2. The Stage (The Simulation)
 The Stage is the "Single Source of Truth" for the current frame. 
@@ -20,7 +20,7 @@ The Stage is the "Single Source of Truth" for the current frame.
 - **Z-Order Rendering**: Elements are rendered based on a Z-index, ensuring backgrounds stay back and overlays stay front.
 
 ### 3. The Pipeline
-`Timeline Events` →\rightarrow→ `Stage State` →\rightarrow→ `Canvas Render`
+`EDL Instructions` →\rightarrow→ `Stage State` →\rightarrow→ `Canvas Render`
 
 ---
 
@@ -29,9 +29,9 @@ The Stage is the "Single Source of Truth" for the current frame.
 - 📂 **Project Folder Loading**: Load an entire directory of video frames and assets via the File System Access API.
 - 🎨 **Sprite Library**: Manage anchor points and assets for your characters and elements.
 - 🏗️ **Instance Management**: A dedicated "Stage" tab to toggle visibility and edit active instances in real-time.
-- ✏️ **Live JSON Editing**: Modify event parameters (X, Y, Z, Scale) on the fly with an integrated JSON editor.
+- ✏️ **Live JSON Editing**: Modify EDL parameters (X, Y, Z, Scale) on the fly with an integrated JSON editor.
 - 🎞️ **Frame-Accurate Navigation**: Precise control over current frames and timeline FPS.
-- 💾 **Project Persistence**: Save and load your entire composition (timeline, sprite anchors, and metadata) as `.ant` files.
+- 💾 **Project Persistence**: Save and load your entire composition (EDL, sprite anchors, and metadata) as `.ant` files.
 
 ## 🛠️ Technical Stack
 
@@ -47,14 +47,24 @@ The Stage is the "Single Source of Truth" for the current frame.
 3. Select your project folder containing your video frames (e.g., `video/prod0001.png`) and assets.
 4. Start animating!
 
+## 🔮 Future Development: Primitive Engine
+
+The vision for Anitron is to move beyond external assets and introduce a robust system of **Internal Primitives**, allowing users to create complex visuals directly within the engine:
+
+- **Dynamic Shapes**: Closed-path shapes capable of morphing and featuring customizable partial outlines.
+- **Sausage Curves**: A specialized curve-primitive where the "meat" (fill), "skin" (outline), and thickness can be modulated independently per control point, creating organic, variable-width paths.
+- **Expanded Asset Support**: Native integration for Video files, Bitmaps, Spritesheets, and SVGs as first-class EDL instances.
+
 ## 🗺️ Roadmap
 
-- [ ] **Interpolation/Tweening**: Smooth transitions between move events.
-- [ ] **Advanced Sprite Types**: Support for SVG sequences and Spritesheets.
-- [ ] **Collision Detection**: Trigger events based on instance overlaps.
-- [ ] **Audio Integration**: Couple sound effects to timeline events.
+- [ ] **Interpolation/Tweening**: Smooth transitions between EDL entries.
+- [ ] **Primitive Support**: Implementation of Shapes and "Sausage" curves.
+- [ ] **Multi-Asset Integration**: Native support for SVG sequences, Spritesheets, and Video.
+- [ ] **Collision Detection**: Trigger actions based on instance overlaps.
+- [ ] **Audio Integration**: Couple sound effects to the EDL timeline.
 
 **☕ Support: Link coming soon!**
 I'll use the standard *sponsor* button in github..
+
 ---
 *Developed via Synthetic Pair Programming.*

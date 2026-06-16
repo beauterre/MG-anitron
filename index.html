@@ -131,9 +131,36 @@
         strong {
             color: var(--brand-light-blue);
         }
+        .github-link {
+    margin-top: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: color 0.2s;
+}
+
+.github-link:hover {
+    color: var(--brand-light-blue);
+}
+
+.github-link img {
+    filter: invert(0.7); /* Makes it a soft grey to match your muted text */
+}
+
+.github-link:hover img {
+    filter: invert(1); /* Turns pure white on hover */
+}
+
     </style>
 </head>
 <body>
+<a href="https://github.com/beauterre/MG-anitron" target="_blank" class="github-link">
+    <img src="https://cdn-icons-png.flaticon.com/512/25/25231.png" width="20" height="20" alt="GitHub">
+    Source Code on GitHub
+</a>
 
     <div class="container">
         <img src="anitron-icon.png" alt="Ani-tron Icon" class="icon">
@@ -156,6 +183,5 @@
             Support the project to unlock the <strong>Primitive Engine</strong> & <strong>Tweening</strong>.
         </p>
     </div>
-
 </body>
 </html>

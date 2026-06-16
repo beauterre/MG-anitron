@@ -1,7 +1,9 @@
 ![Ani-tron Icon](https://raw.githubusercontent.com/beauterre/MG-anitron/main/anitron-icon.png)
 # Anitron 🎬
 
-https://beauterre.github.io/MG-anitron/
+github-page: https://beauterre.github.io/MG-anitron/
+
+github-repo: https://github.com/beauterre/MG-anitron
 
 **Anitron** is a lightweight, browser-based animation and composition engine designed for overlaying sprites and elements onto video frame sequences. 
 
